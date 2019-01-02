@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 1997, 2017 IBM Corporation and others.
+ * Copyright (c) 1997, 2018 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -87,24 +87,24 @@ public class FrameReadProcessor {
         int streamId = currentFrame.getStreamId();
         H2StreamProcessor stream = muxLink.getStream(streamId);
 
-        if (stream != null && stream.isStreamClosed() && muxLink.significantlyPastCloseTime(streamId)) {
-            if (tc.isDebugEnabled()) {
-                Tr.debug(tc, "Stream found, but it was closed and significantly past the close time. stream-id: " + streamId);
+        if (stream == null) {
+            if ((streamId != 0) && (streamId % 2 == 0)) {
+                if (currentFrame.getFrameType().equals(FrameTypes.PRIORITY)) {
+                    // ignore PRIORITY frames in any state
+                    return;
+                } else if (currentFrame.getFrameType().equals(FrameTypes.RST_STREAM) && streamId < muxLink.getHighestClientStreamId()) {
+                    // tolerate RST_STREAM frames that are sent on closed push streams
+                    return;
+                } else {
+                    throw new ProtocolException("Cannot start a stream from the client with an even numbered ID. stream-id: " + streamId);
+                }
+            } else {
+                stream = startNewInboundSession(streamId);
             }
-            throw new ProtocolException("Stream significantly past close time");
         }
-
-        // Even stream IDs can not originate from the client
-        if (stream == null && (streamId != 0) && (streamId % 2 == 0)) {
-            throw new ProtocolException("Cannot start a stream from the client with an even numbered ID. stream-id: " + streamId);
-        }
-
         if (frameSizeError) {
             currentFrame = new FrameRstStream(streamId, 4, (byte) 0, false, FrameDirection.READ);
             ((FrameRstStream) currentFrame).setErrorCode(Constants.FRAME_SIZE_ERROR);
-        }
-        if (stream == null) {
-            stream = startNewInboundSession(streamId);
         }
 
         stream.processNextFrame(currentFrame, Direction.READ_IN);

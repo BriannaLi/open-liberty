@@ -22,7 +22,7 @@ public class CommonExpectationTestClass extends CommonTestClass {
 
     public static final String TEST_ACTION = "testAction";
     public static final String SEARCH_FOR_VAL = "searchForVal";
-    public static final String FAILURE_MESSAGE = "This is a failure message.";
+    public static final String FAILURE_MESSAGE = "This is an expectation-defined failure message.";
     public static final String ACTION1 = "action1";
     public static final String ACTION2 = "action2";
     public static final String ACTION3 = "action3";
@@ -43,7 +43,7 @@ public class CommonExpectationTestClass extends CommonTestClass {
 
     protected void verifySuccessfulResponseStatusExpectation(Expectation expectation, String testAction) {
         String expectedStatus = Integer.toString(HttpServletResponse.SC_OK);
-        String defaultMsg = "Did not receive status code [" + expectedStatus + "] during test action [" + testAction + "].";
+        String defaultMsg = "Did not receive the expected status code [" + expectedStatus + "] during test action [" + testAction + "].";
 
         assertEquals("Expectation action did not match expected value. Expectation was: " + expectation, testAction, expectation.getAction());
         assertEquals("Expectation search location did not match expected value. Expectation was: " + expectation, Constants.RESPONSE_STATUS, expectation.getSearchLocation());

@@ -10,7 +10,6 @@
  *******************************************************************************/
 package com.ibm.ws.concurrent.internal;
 
-import java.security.AccessController;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Map;
@@ -37,8 +36,8 @@ import com.ibm.websphere.ras.Tr;
 import com.ibm.websphere.ras.TraceComponent;
 import com.ibm.websphere.ras.annotation.Trivial;
 import com.ibm.ws.ffdc.annotation.FFDCIgnore;
+import com.ibm.wsspi.kernel.service.utils.FrameworkState;
 import com.ibm.wsspi.threadcontext.ThreadContext;
-import com.ibm.wsspi.threadcontext.ThreadContextProvider;
 import com.ibm.wsspi.threadcontext.WSContextService;
 
 /**
@@ -211,7 +210,7 @@ public class ScheduledTask<T> extends AbstractTask<T> {
 
         Map<String, String> execProps = managedExecSvc.getExecutionProperties(task);
         ScheduledExecutorService scheduledExecSvc = managedExecSvc.scheduledExecSvc;
-        WSContextService contextSvc = AccessController.doPrivileged(managedExecSvc.contextSvcAccessor);
+        WSContextService contextSvc = managedExecSvc.getContextService();
         try {
             threadContextDescriptor = contextSvc.captureThreadContext(execProps);
         } catch (Throwable x) {
@@ -224,10 +223,7 @@ public class ScheduledTask<T> extends AbstractTask<T> {
 
         // notify listener: taskSubmitted
         if (listener != null) {
-            ThreadContextProvider tranContextProvider = AccessController.doPrivileged(managedExecSvc.tranContextProviderAccessor);
-            ThreadContext suspendTranContext = tranContextProvider == null ? null : tranContextProvider.captureThreadContext(XPROPS_SUSPEND_TRAN, null);
-            if (suspendTranContext != null)
-                suspendTranContext.taskStarting();
+            ThreadContext tranContextRestorer = managedExecSvc.suspendTransaction();
             try {
                 result.executionThread = Thread.currentThread();
                 if (TraceComponent.isAnyTracingEnabled() && tc.isEventEnabled())
@@ -235,8 +231,8 @@ public class ScheduledTask<T> extends AbstractTask<T> {
                 listener.taskSubmitted(future, managedExecSvc, task);
             } finally {
                 result.executionThread = null;
-                if (suspendTranContext != null)
-                    suspendTranContext.taskStopping();
+                if (tranContextRestorer != null)
+                    tranContextRestorer.taskStopping();
             }
         }
 
@@ -273,7 +269,7 @@ public class ScheduledTask<T> extends AbstractTask<T> {
         Map<String, String> execProps = managedExecSvc.getExecutionProperties(task);
         ScheduledExecutorService scheduledExecSvc = managedExecSvc.scheduledExecSvc;
         Date nextExecutionDate;
-        WSContextService contextSvc = AccessController.doPrivileged(managedExecSvc.contextSvcAccessor);
+        WSContextService contextSvc = managedExecSvc.getContextService();
         try {
             threadContextDescriptor = contextSvc.captureThreadContext(execProps);
             nextExecutionDate = trigger.getNextRunTime(lastExecution = null, taskScheduledTime);
@@ -290,10 +286,7 @@ public class ScheduledTask<T> extends AbstractTask<T> {
 
         // notify listener: taskSubmitted
         if (listener != null) {
-            ThreadContextProvider tranContextProvider = AccessController.doPrivileged(managedExecSvc.tranContextProviderAccessor);
-            ThreadContext suspendTranContext = tranContextProvider == null ? null : tranContextProvider.captureThreadContext(XPROPS_SUSPEND_TRAN, null);
-            if (suspendTranContext != null)
-                suspendTranContext.taskStarting();
+            ThreadContext tranContextRestorer = managedExecSvc.suspendTransaction();
             try {
                 result.executionThread = Thread.currentThread();
                 if (TraceComponent.isAnyTracingEnabled() && tc.isEventEnabled())
@@ -301,8 +294,8 @@ public class ScheduledTask<T> extends AbstractTask<T> {
                 listener.taskSubmitted(future, managedExecSvc, task);
             } finally {
                 result.executionThread = null;
-                if (suspendTranContext != null)
-                    suspendTranContext.taskStopping();
+                if (tranContextRestorer != null)
+                    tranContextRestorer.taskStopping();
             }
         }
 
@@ -537,7 +530,11 @@ public class ScheduledTask<T> extends AbstractTask<T> {
             // taskAborted or taskDone fails
             // Liberty scheduled executor unavailable, or it fails to schedule
 
-            Tr.error(tc, "CWWKC1101.task.failed", getName(), managedExecSvc.name, x);
+            if (contextAppliedToThread == null && x instanceof IllegalStateException && FrameworkState.isStopping()) {
+                if (trace && tc.isDebugEnabled())
+                    Tr.debug(this, tc, "Task not started due to server shutdown", getName(), x);
+            } else
+                Tr.error(tc, "CWWKC1101.task.failed", getName(), managedExecSvc.name, x);
 
             status = result.getStatus();
             if (!status.finalExecutionIsComplete) {
@@ -624,10 +621,7 @@ public class ScheduledTask<T> extends AbstractTask<T> {
                     // otherwise the task is in progress and should notify the task listener itself.
                     if ((status.type == Status.Type.NONE || status.type == Status.Type.SUBMITTED) && listener != null) {
                         Throwable failure = null;
-                        ThreadContextProvider tranContextProvider = AccessController.doPrivileged(managedExecSvc.tranContextProviderAccessor);
-                        ThreadContext suspendTranContext = tranContextProvider == null ? null : tranContextProvider.captureThreadContext(XPROPS_SUSPEND_TRAN, null);
-                        if (suspendTranContext != null)
-                            suspendTranContext.taskStarting();
+                        ThreadContext tranContextRestorer = managedExecSvc.suspendTransaction();
                         try {
                             try {
                                 Throwable cancelX = new CancellationException(Tr.formatMessage(tc, "CWWKC1110.task.canceled", getName(), managedExecSvc.name));
@@ -646,8 +640,8 @@ public class ScheduledTask<T> extends AbstractTask<T> {
                                 listener.taskDone(this, managedExecSvc, task.task, failure);
                             }
                         } finally {
-                            if (suspendTranContext != null)
-                                suspendTranContext.taskStopping();
+                            if (tranContextRestorer != null)
+                                tranContextRestorer.taskStopping();
                         }
                     }
 

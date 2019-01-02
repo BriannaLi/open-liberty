@@ -152,8 +152,10 @@ public class HttpInboundLink extends InboundProtocolLink implements InterChannel
         }
         // 291714 - clean up the statemap
         getVirtualConnection().getStateMap().remove(CallbackIDs.CALLBACK_HTTPICL);
-        // 363633 - remove the buffer size value if present
-        getVirtualConnection().getStateMap().remove(HttpConstants.HTTPReadBufferSize);
+        if (getChannel().getHttpConfig().runningOnZOS()) {
+            // 363633 - remove the buffer size value if present
+            getVirtualConnection().getStateMap().remove(HttpConstants.HTTPReadBufferSize);
+        }
         // now clean out any other app connlinks we may have picked up
         if (null != this.appSides) {
             // the super.destroy without an exception just nulls out values
@@ -747,11 +749,13 @@ public class HttpInboundLink extends InboundProtocolLink implements InterChannel
             if (bTrace && tc.isDebugEnabled()) {
                 Tr.debug(tc, "Reading for another request...");
             }
-            // 342859 - add a marker indicating the first read of a subsequent
-            // request is starting. This is used for WLM type management on z/OS
-            // right now with request message priority handling and monitoring
-            // of "in-system" times
-            getVirtualConnection().getStateMap().put(HttpConstants.HTTPFirstRead, "true");
+            if (getChannel().getHttpConfig().runningOnZOS()) {
+                // 342859 - add a marker indicating the first read of a subsequent
+                // request is starting. This is used for WLM type management on z/OS
+                // right now with request message priority handling and monitoring
+                // of "in-system" times
+                getVirtualConnection().getStateMap().put(HttpConstants.HTTPFirstRead, "true");
+            }
 
             sc.clear();
             sc.setReadBuffer(null);
@@ -986,15 +990,22 @@ public class HttpInboundLink extends InboundProtocolLink implements InterChannel
      */
     private boolean checkForH2MagicString(HttpInboundServiceContextImpl isc) {
 
+        boolean hasMagicString = false;
+        WsByteBuffer buffer;
+
+        if (myTSC == null || myTSC.getReadInterface() == null ||
+            (buffer = myTSC.getReadInterface().getBuffer()) == null) {
+            return hasMagicString;
+        }
+
         // read the buffer, flip it, and if there is a backing array pull that out
-        WsByteBuffer buffer = this.myTSC.getReadInterface().getBuffer().duplicate();
+        buffer = buffer.duplicate();
         buffer.flip();
         byte[] bufferArray = null;
         if (buffer.hasArray()) {
             bufferArray = buffer.array();
         }
 
-        boolean hasMagicString = false;
         // return true if the read buffer starts with the magic string
         if (bufferArray != null && bufferArray.length >= 24) {
             String bufferString = new String(bufferArray, 0, 24);
@@ -1005,6 +1016,7 @@ public class HttpInboundLink extends InboundProtocolLink implements InterChannel
         if (TraceComponent.isAnyTracingEnabled() && tc.isEntryEnabled()) {
             Tr.exit(tc, "checkForH2MagicString: returning " + hasMagicString);
         }
+        buffer.release();
         return hasMagicString;
     }
 }

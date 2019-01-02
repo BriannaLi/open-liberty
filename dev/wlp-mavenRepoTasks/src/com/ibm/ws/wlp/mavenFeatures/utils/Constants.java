@@ -33,6 +33,10 @@ public class Constants {
 	
 	public static final String API_DEPENDENCIES_GROUP_ID = "com.ibm.websphere.appserver.api";
 	public static final String SPI_DEPENDENCIES_GROUP_ID = "com.ibm.websphere.appserver.spi";
+	public static final String MANIFEST_ZIP_ENTRY = "OSGI-INF/SUBSYSTEM.MF";
+	public static final String SUBSYSTEM_CONTENT = "Subsystem-Content";
+	public static final String SUBSYSTEM_MAVEN_COORDINATES = "mavenCoordinates";
+
 	
 	public static final String WEBSPHERE_LIBERTY_FEATURES_GROUP_ID = "com.ibm.websphere.appserver.features";
 	public static final String OPEN_LIBERTY_FEATURES_GROUP_ID = "io.openliberty.features";
@@ -51,8 +55,20 @@ public class Constants {
 	public static final String LICENSE_URL_MAVEN = "http://public.dhe.ibm.com/ibmdl/export/pub/software/websphere/wasdev/maven/licenses/L-JTHS-8SZMHX/HTML/";
 	public static final String LICENSE_COMMENTS_MAVEN = "Additional notices http://public.dhe.ibm.com/ibmdl/export/pub/software/websphere/wasdev/maven/licenses/L-JTHS-8SZMHX/HTML/notices.html";
 	
+	public static final String WEBSPHERE_LIBERTY_BOM = "WebSphere Liberty features bill of materials";
+	public static final String WEBSPHERE_LIBERTY_JSON = "WebSphere Liberty features JSON";
+	public static final String OPEN_LIBERTY_BOM = "Open Liberty features bill of materials";
+	public static final String OPEN_LIBERTY_JSON = "Open Liberty features JSON";
 
-
+	public static final String OPEN_LIBERTY_SCM_CONNECTION = "scm:git:git@github.com:OpenLiberty/open-liberty.git";
+	public static final String OPEN_LIBRETY_SCM_URL = "git@github.com:OpenLiberty/open-liberty.git";
+	public static final String OPEN_LIBERTY_SCM_TAG = "HEAD";
+	public static final String OPEN_LIBERTY_URL = "https://openliberty.io/";
+	
+	public static final String DEV_ID = "ericglau";
+	public static final String DEV_NAME = "Eric Lau";
+	public static final String DEV_EMAIL = "ericglau@ca.ibm.com"; 
+	
 	public static final String SHORT_NAME_KEY = "shortName";
 	
 	public static final String MAVEN_MODEL_VERSION = "4.0.0";

@@ -14,7 +14,6 @@ import java.lang.reflect.Array;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.text.MessageFormat;
-import java.util.ArrayList;
 import java.util.ResourceBundle;
 import java.util.logging.Formatter;
 import java.util.logging.Level;
@@ -29,8 +28,6 @@ import com.ibm.ws.logging.collector.DateFormatHelper;
 import com.ibm.ws.logging.collector.LogFieldConstants;
 import com.ibm.ws.logging.data.GenericData;
 import com.ibm.ws.logging.data.KeyValuePair;
-import com.ibm.ws.logging.data.Pair;
-import com.ibm.ws.logging.internal.PackageProcessor;
 import com.ibm.ws.logging.internal.WsLogRecord;
 import com.ibm.ws.logging.internal.impl.LoggingConstants.TraceFormat;
 
@@ -137,18 +134,23 @@ public class BaseTraceFormatter extends Formatter {
         if (level != null) {
             int l = level.intValue();
 
-            if (l == WsLevel.FATAL.intValue())
+            //WSLevel.FATAl -> int value of 1100
+            if (l == 1100)
                 return N_FATAL;
-            if (l == WsLevel.ERROR.intValue())
+            //WSLevel.ERROR -> int value of 1000
+            if (l == 1000)
                 return N_ERROR;
-            if (l == Level.WARNING.intValue())
+            //WSLevel.WARNING -> int value of 900
+            if (l == 900)
                 return N_WARN;
-            if (l == WsLevel.AUDIT.intValue())
+            //WSLevel.AUDIT -> int value of 850
+            if (l == 850)
                 return N_AUDIT;
-            if (l == Level.INFO.intValue())
+            //WSLevel.INFO -> int value of 800
+            if (l == 800)
                 return N_INFO;
-
-            if (level == WsLevel.EVENT.intValue())
+            //WSLevel.EVENT -> int value of 500
+            if (level == 500)
                 return N_EVENT;
         }
         return "";
@@ -428,16 +430,16 @@ public class BaseTraceFormatter extends Formatter {
      */
     public String consoleLogFormat(GenericData genData) {
         StringBuilder sb = new StringBuilder(256);
-        ArrayList<Pair> pairs = genData.getPairs();
+        KeyValuePair[] pairs = genData.getPairs();
         KeyValuePair kvp = null;
         String message = null;
         String throwable = null;
         Integer levelValue = null;
-        for (Pair p : pairs) {
+        for (KeyValuePair p : pairs) {
 
-            if (p instanceof KeyValuePair) {
+            if (p != null && !p.isList()) {
 
-                kvp = (KeyValuePair) p;
+                kvp = p;
                 if (kvp.getKey().equals(LogFieldConstants.FORMATTEDMSG)) {
                     message = kvp.getStringValue();
                 } else if (kvp.getKey().equals(LogFieldConstants.LEVELVALUE)) {
@@ -501,7 +503,7 @@ public class BaseTraceFormatter extends Formatter {
         // This is a very light trace format, based on enhanced:
         StringBuilder sb = new StringBuilder(256);
         String name = null;
-        ArrayList<Pair> pairs = genData.getPairs();
+        KeyValuePair[] pairs = genData.getPairs();
         KeyValuePair kvp = null;
         String message = null;
         Long datetime = null;
@@ -509,11 +511,11 @@ public class BaseTraceFormatter extends Formatter {
         String loggerName = null;
         String srcClassName = null;
         String throwable = null;
-        for (Pair p : pairs) {
+        for (KeyValuePair p : pairs) {
 
-            if (p instanceof KeyValuePair) {
+            if (p != null && !p.isList()) {
 
-                kvp = (KeyValuePair) p;
+                kvp = p;
                 if (kvp.getKey().equals(LogFieldConstants.MESSAGE)) {
                     message = kvp.getStringValue();
                 } else if (kvp.getKey().equals(LogFieldConstants.IBM_DATETIME)) {
@@ -674,7 +676,7 @@ public class BaseTraceFormatter extends Formatter {
      */
     public String traceFormatGenData(GenericData genData) {
 
-        ArrayList<Pair> pairs = genData.getPairs();
+        KeyValuePair[] pairs = genData.getPairs();
         KeyValuePair kvp = null;
         String txt = null;
         Integer id = null;
@@ -697,17 +699,17 @@ public class BaseTraceFormatter extends Formatter {
 
         String threadName = null;
         String stackTrace = null;
-        for (Pair p : pairs) {
+        for (KeyValuePair p : pairs) {
 
-            if (p instanceof KeyValuePair) {
+            if (p != null && !p.isList()) {
 
-                kvp = (KeyValuePair) p;
+                kvp = p;
                 if (kvp.getKey().equals(LogFieldConstants.MESSAGE)) {
                     txt = kvp.getStringValue();
                 } else if (kvp.getKey().equals(LogFieldConstants.IBM_DATETIME)) {
                     ibm_datetime = kvp.getLongValue();
                 } else if (kvp.getKey().equals(LogFieldConstants.SEVERITY)) {
-                    sym = kvp.getStringValue();
+                    sym = " " + kvp.getStringValue() + " ";
                 } else if (kvp.getKey().equals(LogFieldConstants.IBM_CLASSNAME)) {
                     className = kvp.getStringValue();
                 } else if (kvp.getKey().equals(LogFieldConstants.IBM_METHODNAME)) {
@@ -736,13 +738,7 @@ public class BaseTraceFormatter extends Formatter {
 
             }
         }
-        if (levelVal == Level.FINER.intValue()) {
-            if (logLevel.equals("ENTRY")) {
-                sym = " > ";
-            } else if (logLevel.equals("EXIT")) {
-                sym = " < ";
-            }
-        }
+
         StringBuilder sb = new StringBuilder(256);
 
         // Common header
@@ -851,22 +847,7 @@ public class BaseTraceFormatter extends Formatter {
     }
 
     private final String generateObjectId(Object id, boolean fixedWidth) {
-        String objId;
-
-        if (id != null) {
-            objId = Integer.toHexString(System.identityHashCode(id));
-            if (objId.length() < 8) {
-                StringBuilder builder = new StringBuilder();
-                builder.append("00000000");
-                builder.append(objId);
-                objId = builder.substring(builder.length() - 8);
-            }
-        } else if (fixedWidth) {
-            objId = pad8;
-        } else {
-            objId = emptyString;
-        }
-        return objId;
+        return generateObjectId(System.identityHashCode(id), fixedWidth);
     }
 
     /**
@@ -1072,13 +1053,8 @@ public class BaseTraceFormatter extends Formatter {
      *
      * @return
      */
-    //change to public
     public WsLogRecord getWsLogRecord(LogRecord logRecord) {
-        try {
-            return (WsLogRecord) logRecord;
-        } catch (ClassCastException ex) {
-            return null;
-        }
+        return (logRecord instanceof WsLogRecord) ? (WsLogRecord) logRecord : null;
     }
 
     /**
@@ -1092,12 +1068,12 @@ public class BaseTraceFormatter extends Formatter {
         String loglevel = null;
         KeyValuePair kvp = null;
 
-        ArrayList<Pair> pairs = genData.getPairs();
-        for (Pair p : pairs) {
+        KeyValuePair[] pairs = genData.getPairs();
+        for (KeyValuePair p : pairs) {
 
-            if (p instanceof KeyValuePair) {
+            if (p != null && !p.isList()) {
 
-                kvp = (KeyValuePair) p;
+                kvp = p;
                 if (kvp.getKey().equals("message")) {
                     txt = kvp.getStringValue();
                 } else if (kvp.getKey().equals("loglevel")) {
@@ -1106,60 +1082,12 @@ public class BaseTraceFormatter extends Formatter {
             }
         }
 
-        String message = filterStackTraces(txt);
+        String message = BaseTraceService.filterStackTraces(txt);
         if (message != null) {
             if (loglevel.equals("SystemErr")) {
                 message = "[err] " + message;
             }
         }
         return message;
-    }
-
-    private String filterStackTraces(String txt) {
-        // Check for stack traces, which we may want to trim
-        StackTraceFlags stackTraceFlags = traceFlags.get();
-        // We have a little thread-local state machine here with four states controlled by two
-        // booleans. Our triggers are { "unknown/user code", "just seen IBM code", "second line of IBM code", ">second line of IBM code"}
-        // "unknown/user code" -> stackTraceFlags.isSuppressingTraces -> false, stackTraceFlags.needsToOutputInternalPackageMarker -> false
-        // "just seen IBM code" -> stackTraceFlags.needsToOutputInternalPackageMarker->true
-        // "second line of IBM code" -> stackTraceFlags.needsToOutputInternalPackageMarker->true
-        // ">second line of IBM code" -> stackTraceFlags.isSuppressingTraces->true
-        // The final two states are optional
-
-        if (txt.startsWith("\tat ")) {
-            // This is a stack trace, do a more detailed analysis
-            PackageProcessor packageProcessor = PackageProcessor.getPackageProcessor();
-            String packageName = PackageProcessor.extractPackageFromStackTraceLine(txt);
-            // If we don't have a package processor, don't suppress anything
-            if (packageProcessor != null && packageProcessor.isIBMPackage(packageName)) {
-                // First internal package, we let through
-                // Second one, we suppress but say we did
-                // If we're still suppressing, and this is a stack trace, this is easy - we suppress
-                if (stackTraceFlags.isSuppressingTraces) {
-                    txt = null;
-                } else if (stackTraceFlags.needsToOutputInternalPackageMarker) {
-                    // Replace the stack trace with something saying we got rid of it
-                    txt = "\tat " + TruncatableThrowable.INTERNAL_CLASSES_STRING;
-                    // No need to output another marker, we've just output it
-                    stackTraceFlags.needsToOutputInternalPackageMarker = false;
-                    // Suppress any subsequent IBM frames
-                    stackTraceFlags.isSuppressingTraces = true;
-                } else {
-                    // Let the text through, but make a note not to let anything but an [internal classes] through
-                    stackTraceFlags.needsToOutputInternalPackageMarker = true;
-                }
-            } else {
-                // This is user code, third party API, or Java API, so let it through
-                // Reset the flags to ensure it gets let through
-                stackTraceFlags.isSuppressingTraces = false;
-                stackTraceFlags.needsToOutputInternalPackageMarker = false;
-            }
-
-        } else {
-            // We're no longer processing a stack, so reset all our state
-            stackTraceFlags.isSuppressingTraces = false;
-            stackTraceFlags.needsToOutputInternalPackageMarker = false;
-        }
-        return txt;
     }
 }

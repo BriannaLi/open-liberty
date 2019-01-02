@@ -82,12 +82,12 @@
         <dependency>
             <groupId>org.jboss.arquillian.testng</groupId>
             <artifactId>arquillian-testng-container</artifactId>
-            <version>1.1.14.Final</version> 
+            <version>1.1.14.Final</version>
         </dependency>
         <dependency>
-            <groupId>com.ibm.ws.org.jboss.arquillian.container</groupId>
+            <groupId>io.openliberty.arquillian</groupId>
             <artifactId>arquillian-liberty-managed</artifactId>
-            <version>999.0.20180329212918</version> 
+            <version>1.0.3</version> 
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -128,6 +128,7 @@
                 <version>2.17</version>
                 <configuration>
                     <systemPropertyVariables>
+                        <argLine>-Dfile.encoding=UTF-8</argLine> <!-- Needed for ZOS becuase arquillian calls string.getBtytes() -->
                         <wlp>${wlp}</wlp>
                         <tck_server>${tck_server}</tck_server>
                         <tck_port>${tck_port}</tck_port>

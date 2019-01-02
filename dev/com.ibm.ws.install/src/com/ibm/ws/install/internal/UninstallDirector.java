@@ -26,6 +26,7 @@ import java.util.logging.Logger;
 import com.ibm.ws.install.InstallException;
 import com.ibm.ws.install.InstallProgressEvent;
 import com.ibm.ws.install.internal.InstallLogUtils.Messages;
+import com.ibm.ws.install.internal.adaptor.ESAAdaptor;
 import com.ibm.ws.install.internal.adaptor.FixAdaptor;
 import com.ibm.ws.install.internal.asset.UninstallAsset;
 import com.ibm.ws.install.internal.asset.UninstallAsset.UninstallAssetType;
@@ -57,18 +58,58 @@ class UninstallDirector extends AbstractDirector {
         uninstallAssets = null;
     }
 
+    /**
+     * Creates array and calls method below
+     *
+     * @param checkDependency if uninstall should check for dependencies
+     * @param productId product id to uninstall
+     * @param toBeDeleted Collection of files to uninstall
+     * @throws InstallException
+     */
     void uninstall(boolean checkDependency, String productId, Collection<File> toBeDeleted) throws InstallException {
+        String[] productIds = new String[1];
+        productIds[0] = productId;
+        uninstall(checkDependency, productIds, toBeDeleted);
+    }
+
+    void retrieveUninstallFileList(UninstallAsset uninstallAsset, boolean checkDependency) throws InstallException {
+        if (uninstallAsset.getType().equals(UninstallAssetType.feature) &&
+            uninstallAsset.getFeatureFileList().isEmpty()) {
+            uninstallAsset.setFeaturePath(ESAAdaptor.getFeaturePath(uninstallAsset.getProvisioningFeatureDefinition(),
+                                                                    engine.getBaseDir(uninstallAsset.getProvisioningFeatureDefinition())));
+            uninstallAsset.setFeatureFileList(ESAAdaptor.determineFilesToBeDeleted(uninstallAsset.getProvisioningFeatureDefinition(), product.getFeatureDefinitions(),
+                                                                                   engine.getBaseDir(uninstallAsset.getProvisioningFeatureDefinition()),
+                                                                                   uninstallAsset.getFeaturePath(), checkDependency,
+                                                                                   uninstallAsset.getFixUpdatesFeature()));
+        }
+    }
+
+    /**
+     * Uninstalls product depending on dependencies
+     *
+     * @param checkDependency if uninstall should check for dependencies
+     * @param productIds product ids to uninstall
+     * @param toBeDeleted Collection of files to uninstall
+     * @throws InstallException
+     */
+    void uninstall(boolean checkDependency, String[] productIds, Collection<File> toBeDeleted) throws InstallException {
         if (uninstallAssets.isEmpty())
             return;
 
-        // check any file is locked
-        fireProgressEvent(InstallProgressEvent.CHECK, 10, Messages.INSTALL_KERNEL_MESSAGES.getLogMessage("STATE_CHECKING"));
-        for (UninstallAsset uninstallAsset : uninstallAssets) {
-            engine.preCheck(uninstallAsset, checkDependency);
-        }
-        if (toBeDeleted != null) {
-            for (File f : toBeDeleted) {
-                InstallUtils.isFileLocked("ERROR_UNINSTALL_PRODUCT_FILE_LOCKED", productId, f);
+        // Run file checking only on Windows
+        if (InstallUtils.isWindows) {
+            // check any file is locked
+            fireProgressEvent(InstallProgressEvent.CHECK, 10, Messages.INSTALL_KERNEL_MESSAGES.getLogMessage("STATE_CHECKING"));
+            for (UninstallAsset uninstallAsset : uninstallAssets) {
+                retrieveUninstallFileList(uninstallAsset, checkDependency);
+                engine.preCheck(uninstallAsset);
+            }
+            if (toBeDeleted != null) {
+                for (File f : toBeDeleted) {
+                    for (String productId : productIds) {
+                        InstallUtils.isFileLocked("ERROR_UNINSTALL_PRODUCT_FILE_LOCKED", productId, f);
+                    }
+                }
             }
         }
 
@@ -80,6 +121,7 @@ class UninstallDirector extends AbstractDirector {
             fireProgressEvent(InstallProgressEvent.UNINSTALL, progress, Messages.INSTALL_KERNEL_MESSAGES.getLogMessage("STATE_UNINSTALLING", uninstallAsset.getName()));
             progress += interval;
             try {
+                retrieveUninstallFileList(uninstallAsset, checkDependency);
                 engine.uninstall(uninstallAsset, checkDependency, filesRestored);
                 log(Level.FINE, uninstallAsset.uninstalledLogMsg());
             } catch (IOException e) {
@@ -117,9 +159,9 @@ class UninstallDirector extends AbstractDirector {
         }
         featureNames.addAll(installFeatureRequiredFeatures);
         uninstallFeatures(featureNames, getInstallFeatures(ids), force);
-        uninstall(true, null, null);
+        uninstall(true, (String) null, null);
         uninstallInternalAndAutoFeatures(featureNames, installedFeatureDefinitions, null);
-        uninstall(true, null, null);
+        uninstall(true, (String) null, null);
     }
 
     /**
@@ -133,7 +175,6 @@ class UninstallDirector extends AbstractDirector {
      *             there is another feature still requires the uninstalling features.
      */
     void uninstallFeatures(Collection<String> featureNames, Collection<String> uninstallInstallFeatures, boolean force) {
-        fireProgressEvent(InstallProgressEvent.CHECK, 1, Messages.INSTALL_KERNEL_MESSAGES.getLogMessage("STATE_CHECKING"));
         product.refresh();
         Collection<ProvisioningFeatureDefinition> installedFeatureDefinitions = product.getAllFeatureDefinitions().values();
         Collection<ProvisioningFeatureDefinition> uninstallFeatures = getProvisioningFeatureDefinition(installedFeatureDefinitions, featureNames);
@@ -165,14 +206,38 @@ class UninstallDirector extends AbstractDirector {
         return false;
     }
 
+    /**
+     * Creates array and calls method below
+     *
+     * @param productId product id to uninstall
+     * @param exceptPlatfromFeatuers If platform features should be ignored
+     * @throws InstallException
+     */
     void uninstallFeaturesByProductId(String productId, boolean exceptPlatfromFeatuers) throws InstallException {
+        String[] productIds = new String[1];
+        productIds[0] = productId;
+        uninstallFeaturesByProductId(productIds, exceptPlatfromFeatuers);
+    }
+
+    /**
+     * Uninstalls features by product id
+     *
+     * @param productIds product ids to uninstall
+     * @param exceptPlatfromFeatuers If platform features should be ignored
+     * @throws InstallException
+     */
+    void uninstallFeaturesByProductId(String[] productIds, boolean exceptPlatfromFeatuers) throws InstallException {
         fireProgressEvent(InstallProgressEvent.CHECK, 1, Messages.INSTALL_KERNEL_MESSAGES.getLogMessage("STATE_CHECKING"));
         Map<String, ProvisioningFeatureDefinition> installedFeatures = exceptPlatfromFeatuers ? product.getAllCoreFeatureDefinitionsExceptPlatform() : product.getAllCoreFeatureDefinitions();
         uninstallAssets = new ArrayList<UninstallAsset>();
         for (ProvisioningFeatureDefinition targetPd : installedFeatures.values()) {
             String pid = targetPd.getHeader("IBM-ProductID");
-            if (pid != null && pid.equals(productId))
-                uninstallAssets.add(new UninstallAsset(targetPd));
+            if (pid != null) {
+                for (String productId : productIds) {
+                    if (pid.equals(productId))
+                        uninstallAssets.add(new UninstallAsset(targetPd));
+                }
+            }
         }
     }
 

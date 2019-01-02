@@ -29,8 +29,10 @@ import com.ibm.websphere.microprofile.faulttolerance_fat.tests.CDICircuitBreaker
 import com.ibm.websphere.microprofile.faulttolerance_fat.tests.CDIFallbackTest;
 import com.ibm.websphere.microprofile.faulttolerance_fat.tests.CDIRetryTest;
 import com.ibm.websphere.microprofile.faulttolerance_fat.tests.CDITimeoutTest;
+import com.ibm.websphere.microprofile.faulttolerance_fat.tests.FallbackMethodTest;
 import com.ibm.websphere.microprofile.faulttolerance_fat.tests.TxRetryReorderedTest;
 import com.ibm.websphere.microprofile.faulttolerance_fat.tests.TxRetryTest;
+import com.ibm.websphere.microprofile.faulttolerance_fat.tests.enablement.DisableEnableTest;
 import com.ibm.websphere.microprofile.faulttolerance_fat.validation.ValidationTest;
 import com.ibm.websphere.simplicity.ShrinkHelper;
 
@@ -48,6 +50,8 @@ import com.ibm.websphere.simplicity.ShrinkHelper;
                 TestMultiModuleConfigLoad.class,
                 TestMultiModuleClassLoading.class,
                 ValidationTest.class,
+                FallbackMethodTest.class,
+                DisableEnableTest.class,
 })
 
 public class FATSuite {
@@ -66,6 +70,7 @@ public class FATSuite {
                         .addAsManifestResource(new File("test-applications/" + APP_NAME + ".war/resources/META-INF/microprofile-config.properties"));
 
         ShrinkHelper.exportArtifact(CDIFaultTolerance_war, "publish/servers/CDIFaultTolerance/dropins/");
+        ShrinkHelper.exportArtifact(CDIFaultTolerance_war, "publish/servers/FTFallback/dropins/");
 
         String TX_APP_NAME = "TxFaultTolerance";
 

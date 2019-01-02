@@ -35,6 +35,7 @@ import com.ibm.ws.security.jwt.config.ConsumerUtils;
 import com.ibm.ws.security.jwt.config.JwtConsumerConfig;
 import com.ibm.ws.security.jwt.utils.JwtUtils;
 import com.ibm.ws.security.jwtsso.config.JwtSsoConfig;
+import com.ibm.ws.security.jwtsso.utils.ConfigUtils;
 import com.ibm.ws.security.jwtsso.utils.IssuerUtil;
 import com.ibm.ws.security.jwtsso.utils.JwtSsoConstants;
 import com.ibm.ws.security.mp.jwt.MicroProfileJwtConfig;
@@ -67,8 +68,8 @@ public class JwtSsoComponent implements JwtSsoConfig {
     private boolean includeLtpaCookie;
     private boolean fallbackToLtpa;
     private boolean cookieSecureFlag;
-    private String jwtBuilderRef;
-    private String jwtConsumerRef;
+    // private String jwtBuilderRef;
+    private String mpjwtConsumerRef;
     private String cookieName;
     private WebAppSecurityConfig webAppSecConfig;
 
@@ -116,15 +117,10 @@ public class JwtSsoComponent implements JwtSsoConfig {
         return cookieSecureFlag;
     }
 
-    @Override
-    public String getJwtBuilderRef() {
-        return jwtBuilderRef;
-    }
-
     /** {@inheritDoc} */
     @Override
     public String getJwtConsumerRef() {
-        return jwtConsumerRef;
+        return mpjwtConsumerRef;
     }
 
     // todo: base sec is going to make WebAppSecurityConfig an osgi service, but
@@ -243,12 +239,14 @@ public class JwtSsoComponent implements JwtSsoConfig {
         setCookiePathToWebAppContextPath = (Boolean) props
                 .get(JwtSsoConstants.CFG_KEY_SETCOOKIEPATHTOWEBAPPCONTEXTPATH);
         includeLtpaCookie = (Boolean) props.get(JwtSsoConstants.CFG_KEY_INCLUDELTPACOOKIE);
-        fallbackToLtpa = (Boolean) props.get(JwtSsoConstants.CFG_KEY_FALLBACKTOLTPA);
+        fallbackToLtpa = (Boolean) props.get(JwtSsoConstants.CFG_USE_LTPA_IF_JWT_ABSENT);
         cookieSecureFlag = (Boolean) props.get(JwtSsoConstants.CFG_KEY_COOKIESECUREFLAG);
-        jwtBuilderRef = JwtUtils.trimIt((String) props.get(JwtSsoConstants.CFG_KEY_JWTBUILDERREF));
-        jwtConsumerRef = JwtUtils.trimIt((String) props.get(JwtSsoConstants.CFG_KEY_JWTCONSUMERREF));
+        // jwtBuilderRef = JwtUtils.trimIt((String)
+        // props.get(JwtSsoConstants.CFG_KEY_JWTBUILDERREF));
+        mpjwtConsumerRef = JwtUtils.trimIt((String) props.get(JwtSsoConstants.CFG_KEY_JWTCONSUMERREF)); //hmm, this does not exist in metatype.
         cookieName = JwtUtils.trimIt((String) props.get(JwtSsoConstants.CFG_KEY_COOKIENAME));
-        if (jwtConsumerRef == null) {
+        cookieName = (new ConfigUtils()).validateCookieName(cookieName, true);
+        if (mpjwtConsumerRef == null) {
             setJwtSsoConsumerDefaults();
         }
         if (tc.isEntryEnabled()) {
@@ -257,10 +255,10 @@ public class JwtSsoComponent implements JwtSsoConfig {
     }
 
     private void setJwtSsoConsumerDefaults() {
-        jwtConsumerRef = getId();
+        mpjwtConsumerRef = getId();
         signatureAlgorithm = "RS256";
         if (tc.isDebugEnabled()) {
-            Tr.debug(tc, "consumer id = ", jwtConsumerRef);
+            Tr.debug(tc, "consumer id = ", mpjwtConsumerRef);
         }
         issuerUtil = new IssuerUtil();
     }
@@ -318,22 +316,19 @@ public class JwtSsoComponent implements JwtSsoConfig {
     /** {@inheritDoc} */
     @Override
     public String getUserNameAttribute() {
-        // TODO Auto-generated method stub
-        return null;
+        return "upn";
     }
 
     /** {@inheritDoc} */
     @Override
     public String getGroupNameAttribute() {
-        // TODO Auto-generated method stub
-        return null;
+        return "groups";
     }
 
     /** {@inheritDoc} */
     @Override
     public boolean ignoreApplicationAuthMethod() {
-        // TODO Auto-generated method stub
-        return false;
+        return true;
     }
 
     /** {@inheritDoc} */
@@ -413,13 +408,24 @@ public class JwtSsoComponent implements JwtSsoConfig {
     @Override
     public boolean getTokenReuse() {
         // TODO Auto-generated method stub
-        return false;
+        return true;
     }
 
     @Override
     public String getCookieName() {
         // TODO Auto-generated method stub
         return cookieName;
+    }
+
+    @Override
+    public String getAuthFilterRef() {
+        // TODO Auto-generated method stub
+        return null;
+    }
+
+    @Override
+    public boolean getUseSystemPropertiesForHttpClientConnections() {
+        return false; // jwk retrieval is not in play here
     }
 
 }

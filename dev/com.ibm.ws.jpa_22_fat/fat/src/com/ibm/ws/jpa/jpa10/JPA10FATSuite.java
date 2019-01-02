@@ -22,6 +22,10 @@ import org.junit.runners.Suite.SuiteClasses;
 @RunWith(Suite.class)
 @SuiteClasses({
                 CallbackTest.class,
+                Relationships_ManyXMany_Web.class,
+                Relationships_ManyXMany_EJB.class,
+                Relationships_ManyXOne_Web.class,
+                Relationships_ManyXOne_EJB.class,
 })
 public class JPA10FATSuite {
 

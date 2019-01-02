@@ -132,7 +132,6 @@ public abstract class JsonLogHandler implements SynchronousHandler, Formatter {
             collectorMgr.subscribe(this, convertToSourceIDList(sourcesToAdd));
 
             sourcesList = newSources; //new master sourcesList
-
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -181,7 +180,11 @@ public abstract class JsonLogHandler implements SynchronousHandler, Formatter {
         for (String source : sourceList) {
             String sourceName = getSourceName(source);
             if (!sourceName.equals("")) {
-                sourceIDList.add(getSourceName(source) + "|" + CollectorConstants.MEMORY);
+                if (!sourceName.contains("audit")) {
+                    sourceIDList.add(getSourceName(source) + "|" + CollectorConstants.MEMORY);
+                } else {
+                    sourceIDList.add(getSourceName(source) + "|" + CollectorConstants.SERVER);
+                }
             }
         }
         return sourceIDList;
@@ -197,24 +200,30 @@ public abstract class JsonLogHandler implements SynchronousHandler, Formatter {
             return CollectorConstants.FFDC_SOURCE;
         else if (source.equals(CollectorConstants.TRACE_CONFIG_VAL))
             return CollectorConstants.TRACE_SOURCE;
-        else if (source.equalsIgnoreCase(CollectorConstants.ACCESS_CONFIG_VAL))
+        else if (source.equalsIgnoreCase(CollectorConstants.ACCESS_CONFIG_VAL)) {
             return CollectorConstants.ACCESS_LOG_SOURCE;
+        } else if (source.equalsIgnoreCase(CollectorConstants.AUDIT_CONFIG_VAL)) {
+            return CollectorConstants.AUDIT_LOG_SOURCE;
+        }
+
         return "";
     }
 
-    protected String getSourceTypeFromDataObject(Object event) {
+    protected String getSourceNameFromDataObject(Object event) {
 
         GenericData genData = (GenericData) event;
-        String sourceType = genData.getSourceType();
+        String sourceName = genData.getSourceName();
 
-        if (sourceType.equals(CollectorConstants.MESSAGES_SOURCE)) {
+        if (sourceName.equals(CollectorConstants.MESSAGES_SOURCE)) {
             return CollectorConstants.MESSAGES_SOURCE;
-        } else if (sourceType.equals(CollectorConstants.TRACE_SOURCE)) {
+        } else if (sourceName.equals(CollectorConstants.TRACE_SOURCE)) {
             return CollectorConstants.TRACE_SOURCE;
-        } else if (sourceType.equals(CollectorConstants.ACCESS_LOG_SOURCE)) {
+        } else if (sourceName.equals(CollectorConstants.ACCESS_LOG_SOURCE)) {
             return CollectorConstants.ACCESS_LOG_SOURCE;
-        } else if (sourceType.equals(CollectorConstants.FFDC_SOURCE)) {
+        } else if (sourceName.equals(CollectorConstants.FFDC_SOURCE)) {
             return CollectorConstants.FFDC_SOURCE;
+        } else if (sourceName.contains(CollectorConstants.AUDIT_LOG_SOURCE)) {
+            return CollectorConstants.AUDIT_LOG_SOURCE;
         } else {
             return "";
         }

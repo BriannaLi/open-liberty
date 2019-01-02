@@ -14,58 +14,36 @@ import com.gargoylesoftware.htmlunit.WebClient;
 import com.ibm.ws.security.fat.common.expectations.Expectation;
 import com.ibm.ws.security.fat.common.expectations.Expectations;
 import com.ibm.ws.security.fat.common.expectations.ResponseFullExpectation;
-import com.ibm.ws.security.fat.common.expectations.ResponseTitleExpectation;
-import com.ibm.ws.security.fat.common.expectations.ResponseUrlExpectation;
 import com.ibm.ws.security.jwtsso.fat.expectations.CookieExpectation;
 import com.ibm.ws.security.jwtsso.fat.expectations.JwtExpectation;
 
-public class CommonExpectations {
+public class CommonExpectations extends com.ibm.ws.security.fat.common.utils.CommonExpectations {
 
     protected static Class<?> thisClass = CommonExpectations.class;
 
     /**
      * Sets expectations that will check:
      * <ol>
-     * <li>200 status code in the response for the specified test action
-     * <li>Response URL is equivalent to provided URL
+     * <li>Successfully reached the specified URL
+     * <li>Response text includes JWT cookie and principal information
      * </ol>
      */
-    public static Expectations successfullyReachedUrl(String testAction, String url) {
-        Expectations expectations = new Expectations();
-        expectations.addSuccessStatusCodesForActions(new String[] { testAction });
-        expectations.addExpectation(new ResponseUrlExpectation(testAction, JwtFatConstants.STRING_EQUALS, url, "Did not reach the expected URL."));
-        return expectations;
-    }
-
-    /**
-     * Sets expectations that will check:
-     * <ol>
-     * <li>200 status code in the response for the specified test action
-     * <li>Response title is equivalent to expected login page title
-     * </ol>
-     */
-    public static Expectations successfullyReachedLoginPage(String testAction) {
-        Expectations expectations = new Expectations();
-        expectations.addSuccessStatusCodesForActions(new String[] { testAction });
-        expectations.addExpectation(new ResponseTitleExpectation(testAction, JwtFatConstants.STRING_EQUALS, "login.jsp", "Title of page returned during test step " + testAction
-                                                                                                                         + " did not match expected value."));
-        return expectations;
+    public static Expectations successfullyReachedProtectedResourceWithJwtCookie(String testAction, String protectedUrl, String username) {
+        return successfullyReachedProtectedResourceWithJwtCookie(testAction, protectedUrl, username, JwtFatConstants.DEFAULT_ISS_REGEX);
     }
 
     /**
      * Sets expectations that will check:
      * <ol>
      * <li>Successfully reached the specified URL
-     * <li>JWT SSO cookie with the default name is present in the WebClient
-     * <li>Response text includes JWT cookie and principal information (no LTPA cookie information)
+     * <li>Response text includes JWT cookie and principal information
      * </ol>
      */
-    public static Expectations successfullyReachedProtectedResourceWithJwtCookie(String testAction, WebClient webClient, String protectedUrl, String username) {
+    public static Expectations successfullyReachedProtectedResourceWithJwtCookie(String testAction, String protectedUrl, String username, String issuerRegex) {
         Expectations expectations = new Expectations();
         expectations.addExpectations(successfullyReachedUrl(testAction, protectedUrl));
-        expectations.addExpectations(jwtCookieExists(testAction, webClient, JwtFatConstants.JWT_COOKIE_NAME));
-        expectations.addExpectations(getResponseTextExpectationsForJwtCookie(testAction, JwtFatConstants.JWT_COOKIE_NAME, username, JwtFatConstants.BASIC_REALM));
-        expectations.addExpectations(getJwtPrincipalExpectations(testAction, username, JwtFatConstants.DEFAULT_ISS_REGEX));
+        expectations.addExpectations(getResponseTextExpectationsForJwtCookie(testAction, JwtFatConstants.JWT_COOKIE_NAME, username));
+        expectations.addExpectations(getJwtPrincipalExpectations(testAction, username, issuerRegex));
         return expectations;
     }
 
@@ -73,14 +51,12 @@ public class CommonExpectations {
      * Sets expectations that will check:
      * <ol>
      * <li>Successfully reached the specified URL
-     * <li>Response headers do not include JWT cookie information
-     * <li>Response text includes LTPA cookie and principal information (no JWT cookie information)
+     * <li>Response text includes LTPA cookie and principal information
      * </ol>
      */
     public static Expectations successfullyReachedProtectedResourceWithLtpaCookie(String testAction, WebClient webClient, String protectedUrl, String username) {
         Expectations expectations = new Expectations();
         expectations.addExpectations(successfullyReachedUrl(testAction, protectedUrl));
-        expectations.addExpectations(ltpaCookieExists(testAction, webClient));
         expectations.addExpectations(getResponseTextExpectationsForLtpaCookie(testAction, username));
         return expectations;
     }
@@ -136,12 +112,12 @@ public class CommonExpectations {
      * <li>Subject public credentials include appropriate access ID
      * </ol>
      */
-    public static Expectations getResponseTextExpectationsForJwtCookie(String testAction, String jwtCookieName, String username, String accessIdRealmRegex) {
+    public static Expectations getResponseTextExpectationsForJwtCookie(String testAction, String jwtCookieName, String username) {
         Expectations expectations = new Expectations();
         expectations.addExpectations(responseTextIncludesCookie(testAction, jwtCookieName));
         expectations.addExpectations(responseTextIncludesExpectedRemoteUser(testAction, username));
         expectations.addExpectations(responseTextIncludesJwtPrincipal(testAction));
-        expectations.addExpectations(responseTextIncludesExpectedAccessId(testAction, accessIdRealmRegex, username));
+        expectations.addExpectations(responseTextIncludesExpectedAccessId(testAction, JwtFatConstants.BASIC_REALM, username));
         return expectations;
     }
 
@@ -150,8 +126,8 @@ public class CommonExpectations {
      * <ol>
      * <li>Response text includes an LTPA cookie
      * <li>Response text includes expected remote user
-     * <li>Subject principal specifies the expected user
-     * <li>Subject public credentials include appropriate access ID
+     * <li>Subject principal is a WSPrincipal with the expected user
+     * <li>Subject public credentials include appropriate access ID with registry realm
      * </ol>
      */
     public static Expectations getResponseTextExpectationsForLtpaCookie(String testAction, String username) {
@@ -202,15 +178,6 @@ public class CommonExpectations {
         String accessId = "accessId=user:" + realm + "/" + user;
         expectations.addExpectation(new ResponseFullExpectation(testAction, JwtFatConstants.STRING_MATCHES, "Public Credential: .+"
                                                                                                             + accessId, "Did not find expected access ID in response content."));
-        return expectations;
-    }
-
-    /**
-     * Sets expectations that will check various claims within the subject JWT.
-     */
-    public static Expectations getJwtPrincipalExpectations(String testAction) {
-        Expectations expectations = new Expectations();
-        expectations.addExpectations(getJwtPrincipalExpectations(testAction, JwtFatConstants.TESTUSER, "https?://" + "[^/]+" + JwtFatConstants.DEFAULT_ISS_CONTEXT));
         return expectations;
     }
 

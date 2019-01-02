@@ -245,7 +245,7 @@ patchingNotApplicableNoChange=No se ha extra\u00eddo contenido porque no hay car
 
 # {0} is the name of the superseded fix and {1} is the name of the superseding fix.
 patchingSkippedSupersededFix=El arreglo {0} ha sido reemplazado por {1}, que ya est\u00e1 instalado.\n\
-\La instalaci\u00f3n de {0} se ha ignorado.
+La instalaci\u00f3n de {0} se ha ignorado.
 
 # {0} is the message from the exception that caused us to be unable to create a parser for reading the XML files
 ifixutils.unable.to.create.parser=Se ha producido un error al leer la informaci\u00f3n de iFix de la instalaci\u00f3n actual. El mensaje de excepci\u00f3n es: {0}.
@@ -277,6 +277,7 @@ RUN_IN_CHILD_JVM_DEBUG=WLP_JAR_DEBUG se ha establecido. El servidor se ejecutar\
 RUN_IN_CHILD_JVM_JVM_OPTIONS=El jar contiene archivos jvm.options. El servidor se ejecutar\u00e1 en una m\u00e1quina virtual Java independiente.
 RUN_IN_CHILD_JVM_IBM_AGENT_ISSUE=Se est\u00e1 utilizando un SDK IBM sin la opci\u00f3n -XX:+EnableHCR. El servidor se ejecutar\u00e1 en una m\u00e1quina virtual Java independiente.
 RUN_IN_CHILD_JVM_JRE=Se est\u00e1 utilizando una instalaci\u00f3n de entorno de tiempo de ejecuci\u00f3n Java. El servidor se ejecutar\u00e1 en una m\u00e1quina virtual Java independiente.
+RUN_IN_CHILD_JVM_SET_JAVA_HOME=Estableciendo la variable de entorno JAVA_HOME: {0}
 
 # messages for LicenseSelfEctractor
 LICENSE_invalidInstall=El directorio {0} no es una instalaci\u00f3n de Liberty v\u00e1lida. Especifique el directorio ra\u00edz de la instalaci\u00f3n de Liberty que desea actualizar.

@@ -26,8 +26,9 @@ public class HttpEndpoint extends ConfigElement {
     @XmlElement(name = "sslOptions")
     private SslOptions sslOptions;
     private String host;
-    private Integer httpPort;
-    private Integer httpsPort;
+    private String httpPort;
+    private String httpsPort;
+    private String protocolVersion;
 
     /**
      * @return TCP options for this configuration
@@ -67,7 +68,7 @@ public class HttpEndpoint extends ConfigElement {
     /**
      * @return the port to use for non-secure traffic
      */
-    public Integer getHttpPort() {
+    public String getHttpPort() {
         return this.httpPort;
     }
 
@@ -75,14 +76,14 @@ public class HttpEndpoint extends ConfigElement {
      * @param httpPort the port to use for non-secure traffic
      */
     @XmlAttribute
-    public void setHttpPort(Integer httpPort) {
+    public void setHttpPort(String httpPort) {
         this.httpPort = httpPort;
     }
 
     /**
      * @return the port to use for secure traffic
      */
-    public Integer getHttpsPort() {
+    public String getHttpsPort() {
         return this.httpsPort;
     }
 
@@ -90,8 +91,23 @@ public class HttpEndpoint extends ConfigElement {
      * @param httpsPort the port to use for secure traffic
      */
     @XmlAttribute
-    public void setHttpsPort(Integer httpsPort) {
+    public void setHttpsPort(String httpsPort) {
         this.httpsPort = httpsPort;
+    }
+
+    /**
+     * @return the protocolVersion for this entry
+     */
+    public String getProtocolVersion() {
+        return this.protocolVersion;
+    }
+
+    /**
+     * @param protocolVersion for this entry
+     */
+    @XmlAttribute
+    public void setProtocolVersion(String protocolVersion) {
+        this.protocolVersion = ConfigElement.getValue(protocolVersion);
     }
 
     @Override
@@ -104,6 +120,8 @@ public class HttpEndpoint extends ConfigElement {
             buf.append("httpPort=\"" + this.httpPort + "\" ");
         if (this.httpsPort != null)
             buf.append("httpsPort=\"" + this.httpsPort + "\" ");
+        if (this.protocolVersion != null)
+            buf.append("protocolVersion=\"" + this.protocolVersion + "\" ");
         if (this.tcpOptions != null)
             buf.append(tcpOptions.toString());
         if (this.sslOptions != null)

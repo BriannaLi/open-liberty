@@ -28,6 +28,7 @@ import javax.batch.runtime.JobExecution;
 import javax.batch.runtime.JobInstance;
 import javax.batch.runtime.StepExecution;
 
+import com.ibm.jbatch.container.exception.BatchIllegalJobStatusTransitionException;
 import com.ibm.jbatch.container.exception.ExecutionAssignedToServerException;
 import com.ibm.jbatch.container.exception.JobStoppedException;
 import com.ibm.jbatch.container.execution.impl.RuntimePartitionExecution;
@@ -186,9 +187,13 @@ public interface IPersistenceManagerService extends IBatchServiceBase {
 
     public int getJobInstanceCount(String jobName, String submitter);
 
-    public JobInstance updateJobInstanceWithInstanceState(long jobInstanceId, InstanceState state, Date date);
+    public JobInstanceEntity updateJobInstanceWithInstanceState(long jobInstanceId, InstanceState state, Date date);
 
-    public JobInstance updateJobInstanceWithInstanceStateUponRestart(long jobInstanceId, InstanceState state, Date date);
+    public JobInstance updateJobInstanceOnRestart(long jobInstanceId, Date date);
+
+    public JobInstance updateJobInstanceStateOnConsumed(long instanceId) throws BatchIllegalJobStatusTransitionException;
+
+    public JobInstance updateJobInstanceStateOnQueued(long instanceId) throws BatchIllegalJobStatusTransitionException;
 
     public JobInstance updateJobInstanceWithInstanceStateAndBatchStatus(long jobInstanceId, InstanceState state, BatchStatus batchStatus, Date date);
 
@@ -238,7 +243,8 @@ public interface IPersistenceManagerService extends IBatchServiceBase {
      * @throws NoSuchJobExecutionException if the job execution is not located by the find query
      * @throws ExecutionAssignedToServerException if the execution has been assigned to a server/endpoint (serverid set)
      */
-    JobExecution updateJobExecutionAndInstanceNotSetToServerYet(long jobExecutionId, Date updateTime) throws NoSuchJobExecutionException, ExecutionAssignedToServerException;
+    JobExecution updateJobExecutionAndInstanceOnStopBeforeServerAssigned(long jobExecutionId,
+                                                                         Date updateTime) throws NoSuchJobExecutionException, ExecutionAssignedToServerException;
 
     public JobExecution updateJobExecutionAndInstanceOnEnd(long jobExecutionId, BatchStatus finalBatchStatus, String finalExitStatus,
                                                            Date endTime) throws NoSuchJobExecutionException;
@@ -581,4 +587,5 @@ public interface IPersistenceManagerService extends IBatchServiceBase {
      * @return the job instance version field, initialized or not, (may return 'null')
      */
     Integer getJobInstanceTableVersionField();
+
 }

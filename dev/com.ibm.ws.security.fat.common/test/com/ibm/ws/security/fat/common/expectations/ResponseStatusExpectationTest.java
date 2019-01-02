@@ -83,6 +83,36 @@ public class ResponseStatusExpectationTest extends CommonSpecificExpectationTest
         }
     }
 
+    @Test
+    public void test_constructor_intStatus_noFailureMsg() {
+        try {
+            int expectedStatus = -1234;
+
+            ResponseStatusExpectation exp = new ResponseStatusExpectation(TEST_ACTION, expectedStatus);
+
+            String expectedErrorMsg = String.format(ResponseStatusExpectation.DEFAULT_FAILURE_MSG, Integer.toString(expectedStatus), TEST_ACTION);
+            verifyExpectationValues(exp, TEST_ACTION, Constants.RESPONSE_STATUS, Constants.STRING_EQUALS, null, Integer.toString(expectedStatus), expectedErrorMsg);
+
+        } catch (Throwable t) {
+            outputMgr.failWithThrowable(testName.getMethodName(), t);
+        }
+    }
+
+    @Test
+    public void test_constructor_intStatus_withFailureMsg() {
+        try {
+            int expectedStatus = 500;
+            String failureMsg = "failureMsg";
+
+            ResponseStatusExpectation exp = new ResponseStatusExpectation(TEST_ACTION, expectedStatus, failureMsg);
+
+            verifyExpectationValues(exp, TEST_ACTION, Constants.RESPONSE_STATUS, Constants.STRING_EQUALS, null, Integer.toString(expectedStatus), failureMsg);
+
+        } catch (Throwable t) {
+            outputMgr.failWithThrowable(testName.getMethodName(), t);
+        }
+    }
+
     /************************************** validate **************************************/
 
     @Override
@@ -116,6 +146,18 @@ public class ResponseStatusExpectationTest extends CommonSpecificExpectationTest
             Object content = "Some content";
 
             runNegativeValidateTestForUnsupportedResponseType(exp, content);
+        } catch (Throwable t) {
+            outputMgr.failWithThrowable(testName.getMethodName(), t);
+        }
+    }
+
+    @Test
+    public void test_validate_nullAction() {
+        try {
+            Expectation exp = new ResponseStatusExpectation(null, Constants.STRING_CONTAINS, "200", FAILURE_MESSAGE);
+            Object content = 200;
+
+            exp.validate(content);
         } catch (Throwable t) {
             outputMgr.failWithThrowable(testName.getMethodName(), t);
         }
@@ -236,6 +278,11 @@ public class ResponseStatusExpectationTest extends CommonSpecificExpectationTest
     @Override
     protected Expectation createBasicExpectation() {
         return new ResponseStatusExpectation(TEST_ACTION, Constants.STRING_CONTAINS, SEARCH_FOR_VAL, FAILURE_MESSAGE);
+    }
+
+    @Override
+    protected Expectation createBasicExpectationWithNoAction() {
+        return new ResponseStatusExpectation(null, Constants.STRING_CONTAINS, SEARCH_FOR_VAL, FAILURE_MESSAGE);
     }
 
     protected void setValidateTestExpectations(Object responseObject, final Object content) {

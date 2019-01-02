@@ -27,6 +27,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import org.osgi.framework.Version;
+import org.osgi.framework.VersionRange;
+
+import com.ibm.ws.app.manager.springboot.container.ApplicationError;
+import com.ibm.ws.app.manager.springboot.container.ApplicationTr.Type;
 import com.ibm.ws.app.manager.springboot.container.SpringBootConfigFactory;
 import com.ibm.ws.app.manager.springboot.container.config.ConfigElementList;
 import com.ibm.ws.app.manager.springboot.container.config.HttpEndpoint;
@@ -42,7 +47,6 @@ import com.ibm.ws.app.manager.springboot.container.config.VirtualHost;
 @SuppressWarnings("restriction")
 public class ServerConfigurationFactory {
     private static final String SECURITY_DIR = "resources/security/";
-
     public static final String LIBERTY_USE_DEFAULT_HOST = "server.liberty.use-default-host";
     public static final String PORT = "port";
     public static final String ADDRESS = "address";
@@ -62,6 +66,11 @@ public class ServerConfigurationFactory {
     public static final String SSL_TRUST_STORE_PASSWORD = "ssl.trust-store-password";
     public static final String SSL_TRUST_STORE_PROVIDER = "ssl.trust-store-provider";
     public static final String SSL_TRUST_STORE_TYPE = "ssl.trust-store-type";
+    public static final String HTTP2 = "http2";
+    public static final String NEED = "NEED";
+    public static final String WANT = "WANT";
+    private static final String HTTP_11 = "http/1.1";
+    private static final String HTTP_2 = "http/2";
 
     public static ServerConfiguration createServerConfiguration(Map<String, Object> serverProperties, SpringBootConfigFactory configFactory, Function<String, URL> urlGetter) {
         ServerConfiguration sc = new ServerConfiguration();
@@ -80,12 +89,30 @@ public class ServerConfigurationFactory {
         return sc;
     }
 
+    public static void checkSpringBootVersion(String min, String max, String actual) {
+        VersionRange range = null;
+        Version vActual = null;
+        try {
+            vActual = Version.valueOf(actual);
+            if (max == null) {
+                range = new VersionRange(min);
+            } else {
+                range = new VersionRange('[' + min + ',' + max + ')');
+            }
+        } catch (IllegalArgumentException e) {
+            // version parsing issues; auto-FFDC here
+        }
+        if (!range.includes(vActual)) {
+            throw new ApplicationError(Type.ERROR_UNSUPPORTED_SPRING_BOOT_VERSION, actual, range.toString());
+        }
+
+    }
+
     private static void configureVirtualHost(ServerConfiguration sc, Integer port) {
         List<VirtualHost> virtualHosts = sc.getVirtualHosts();
         virtualHosts.clear();
         VirtualHost virtualHost = new VirtualHost();
         virtualHost.setId(ID_VIRTUAL_HOST + port);
-        virtualHost.setAllowFromEndpointRef(ID_HTTP_ENDPOINT + port);
         Set<String> aliases = virtualHost.getHostAliases();
         aliases.clear();
         aliases.add("*:" + port);
@@ -118,6 +145,15 @@ public class ServerConfigurationFactory {
         String serverHeader = (String) serverProperties.get(SERVER_HEADER);
         if (serverHeader != null) {
             endpoint.getHttpOptions().setServerHeaderValue(serverHeader);
+        }
+
+        Boolean isHttp2Enabled = (Boolean) serverProperties.get(HTTP2);
+        if (isHttp2Enabled != null) {
+            if (isHttp2Enabled) {
+                endpoint.setProtocolVersion(HTTP_2);
+            } else {
+                endpoint.setProtocolVersion(HTTP_11);
+            }
         }
     }
 
@@ -166,9 +202,9 @@ public class ServerConfigurationFactory {
 
         String clientAuth = (String) serverProperties.get(SSL_CLIENT_AUTH);
         if (clientAuth != null) {
-            if ("NEED".equals(clientAuth)) {
+            if (NEED.equals(clientAuth)) {
                 sslConfig.setClientAuthentication(true);
-            } else if ("WANT".equals(clientAuth)) {
+            } else if (WANT.equals(clientAuth)) {
                 sslConfig.setClientAuthenticationSupported(true);
             }
         }

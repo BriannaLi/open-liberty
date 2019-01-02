@@ -30,6 +30,7 @@ import org.osgi.service.component.annotations.ReferenceCardinality;
 import org.osgi.service.component.annotations.ReferencePolicy;
 import org.osgi.service.component.annotations.ReferencePolicyOption;
 
+import com.ibm.jbatch.container.exception.BatchIllegalJobStatusTransitionException;
 import com.ibm.jbatch.container.exception.ExecutionAssignedToServerException;
 import com.ibm.jbatch.container.persistence.jpa.JobInstanceEntity;
 import com.ibm.jbatch.container.services.IJPAQueryHelper;
@@ -235,12 +236,22 @@ public class WSJobRepositoryImpl implements WSJobRepository {
 
     @Override
     public WSJobInstance updateJobInstanceState(long instanceId, InstanceState state) {
-        return (WSJobInstance) persistenceManagerService.updateJobInstanceWithInstanceState(instanceId, state, new Date());
+        return persistenceManagerService.updateJobInstanceWithInstanceState(instanceId, state, new Date());
     }
 
     @Override
-    public WSJobInstance updateJobInstanceStateUponRestart(long instanceId, InstanceState state) {
-        return (WSJobInstance) persistenceManagerService.updateJobInstanceWithInstanceStateUponRestart(instanceId, state, new Date());
+    public WSJobInstance updateJobInstanceStateOnRestart(long instanceId) {
+        return (WSJobInstance) persistenceManagerService.updateJobInstanceOnRestart(instanceId, new Date());
+    }
+
+    @Override
+    public WSJobInstance updateJobInstanceStateOnConsumed(long instanceId) throws BatchIllegalJobStatusTransitionException {
+        return (WSJobInstance) persistenceManagerService.updateJobInstanceStateOnConsumed(instanceId);
+    }
+
+    @Override
+    public WSJobInstance updateJobInstanceStateOnQueued(long instanceId) throws BatchIllegalJobStatusTransitionException {
+        return (WSJobInstance) persistenceManagerService.updateJobInstanceStateOnQueued(instanceId);
     }
 
     /**
@@ -342,10 +353,17 @@ public class WSJobRepositoryImpl implements WSJobRepository {
         return (WSJobExecution) persistenceManagerService.updateJobExecutionAndInstanceOnStatusChange(jobExecutionId, status, date);
     }
 
+    // DELETE ME - rename to better name
     @Override
     public WSJobExecution updateJobExecutionAndInstanceNotSetToServerYet(
                                                                          long jobExecutionId, Date date) throws ExecutionAssignedToServerException {
-        return (WSJobExecution) persistenceManagerService.updateJobExecutionAndInstanceNotSetToServerYet(jobExecutionId, date);
+        return updateJobExecutionAndInstanceOnStopBeforeServerAssigned(jobExecutionId, date);
+    }
+
+    @Override
+    public WSJobExecution updateJobExecutionAndInstanceOnStopBeforeServerAssigned(
+                                                                                  long jobExecutionId, Date date) throws ExecutionAssignedToServerException {
+        return (WSJobExecution) persistenceManagerService.updateJobExecutionAndInstanceOnStopBeforeServerAssigned(jobExecutionId, date);
     }
 
     @Override

@@ -134,6 +134,14 @@ SEC_FORM_LOGOUTEXITPAGE_INVALID=CWWKS9125E: L''URL fornito nella logoutExitPage 
 SEC_FORM_LOGOUTEXITPAGE_INVALID.explanation=Il servizio Form-Logout non \u00e8 riuscito ad eseguire correttamente il reindirizzamento alla pagina specificata nel parametro servelt logoutExitPage. L'URL specificato \u00e8 un URL con formato non corretto oppure il nome host non \u00e8 specificato nella propriet\u00e0 com.ibm.websphere.security.logoutExitPageDomainList.
 SEC_FORM_LOGOUTEXITPAGE_INVALID.useraction=Correggere l'URL specificato nel parametro logoutExitPage.
 
-JWT_ALREADY_LOGGED_OUT=CWWKS9126E: L'accesso tramite un JWT (JSON Web Token) non \u00e8 riuscito perch\u00e9 il token \u00e8 stato precedentemente scollegato.
-JWT_ALREADY_LOGGED_OUT.explanation=Un JWT (JSON Web Token) precedentemente scollegato \u00e8 stato di nuovo inviato per l'autenticazione di accesso.
-JWT_ALREADY_LOGGED_OUT.useraction=Ottenere un nuovo JWT (JSON Web Token) o impostare l'attributo di configurazione trackLoggedOutSSOCookiesEnabled su false, che \u00e8 meno sicuro.
+JWT_ALREADY_LOGGED_OUT=CWWKS9126A: L'autenticazione tramite un JWT (JSON Web Token) non \u00e8 riuscita perch\u00e9 il token \u00e8 stato precedentemente scollegato.
+JWT_ALREADY_LOGGED_OUT.explanation=Un JWT (JSON Web Token) precedentemente scollegato \u00e8 stato di nuovo inviato per l'autenticazione.
+JWT_ALREADY_LOGGED_OUT.useraction=Ottenere un nuovo JWT (JSON Web Token).
+
+JWT_COOKIE_SECURITY_MISMATCH=CWWKS9127W: La funzione jwtSso imposta un cookie sicuro su una richiesta HTTP non sicura. Potrebbe essere un errore di configurazione.  Utilizzare il protocollo HTTPS o impostare l'attributo di configurazione jwtSso setCookieSecureFlag su false.
+JWT_COOKIE_SECURITY_MISMATCH.explanation=Un cookie \u00e8 contrassegnato come sicuro ma il protocollo \u00e8 HTTP, pertanto il cookie non sar\u00e0 mai restituito, questo potrebbe causare la non riuscita di richieste successive.
+JWT_COOKIE_SECURITY_MISMATCH.useraction=Utilizzare il protocollo HTTPS o impostare l'attributo di configurazione jwtSso setCookieSecureFlag su false.
+
+#TOKEN_EXPIRATION_MISMATCH=CWWKS9128W: JWT and LTPA cookies are both set on a response, with differing expiration times of {0} and {1} minutes. Change the ltpa or jwtBuilder configuration elements so that both types of tokens have the same expiration time.
+#TOKEN_EXPIRATION_MISMATCH.explanation=JSON Web Token (JWT) and Lightweight Third Party Authentication (LTPA) tokens are both enabled in the server configuration, but they have different expiration times. Tokens with differing expiration times might cause subsequent requests to fail unexpectedly.
+#TOKEN_EXPIRATION_MISMATCH.useraction=Configure JWT and LTPA tokens to have the same expiration time. For LTPA, change the configuration of the ltpa element. For JWT, change the configuration of the jwtBuilderRef element that is referenced in your jwtSso configuration.  

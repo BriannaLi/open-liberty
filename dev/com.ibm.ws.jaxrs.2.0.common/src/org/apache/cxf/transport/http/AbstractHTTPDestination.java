@@ -35,7 +35,6 @@ import java.util.logging.Level;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletContext;
-import javax.servlet.ServletRequest;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.xml.namespace.QName;
@@ -123,7 +122,6 @@ public abstract class AbstractHTTPDestination
     protected boolean fixedParameterOrder;
     protected boolean multiplexWithAddress;
     protected CertConstraints certConstraints;
-    protected boolean isServlet3;
     protected boolean decodeBasicAuthWithIso8859;
     protected ContinuationProviderFactory cproviderFactory;
     protected boolean enableWebSocket;
@@ -150,12 +148,6 @@ public abstract class AbstractHTTPDestination
         this.bus = b;
         this.registry = registry;
         this.path = path;
-        try {
-            ServletRequest.class.getMethod("isAsyncSupported");
-            isServlet3 = true;
-        } catch (Throwable t) {
-            //servlet 2.5 or earlier, no async support
-        }
         decodeBasicAuthWithIso8859 = PropertyUtils.isTrue(bus.getProperty(DECODE_BASIC_AUTH_WITH_ISO8859));
 
         initConfig();
@@ -296,6 +288,8 @@ public abstract class AbstractHTTPDestination
             if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
                 Tr.debug(tc, "Finished servicing http request on thread: " + Thread.currentThread());
             }
+            //clean up address within threadlocal of EndPointInfo   Liberty#3669
+            endpointInfo.resetAddress();
         }
     }
 
@@ -480,12 +474,6 @@ public abstract class AbstractHTTPDestination
     }
 
     protected Message retrieveFromContinuation(HttpServletRequest req) {
-        if (!isServlet3) {
-            if (cproviderFactory != null) {
-                return cproviderFactory.retrieveFromContinuation(req);
-            }
-            return null;
-        }
         return retrieveFromServlet3Async(req);
     }
 
@@ -502,7 +490,7 @@ public abstract class AbstractHTTPDestination
                                      final HttpServletRequest req,
                                      final HttpServletResponse resp) {
         try {
-            if (isServlet3 && req.isAsyncSupported()) {
+            if (req.isAsyncSupported()) {
                 inMessage.put(ContinuationProvider.class.getName(),
                               new Servlet3ContinuationProvider(req, resp, inMessage));
             } else if (cproviderFactory != null) {

@@ -36,7 +36,7 @@ import componenttest.custom.junit.runner.Mode.TestMode;
 import componenttest.topology.impl.LibertyServer;
 import componenttest.topology.impl.LibertyServerFactory;
 
-@MinimumJavaLevel(javaLevel = 1.8, runSyntheticTest = false)
+@MinimumJavaLevel(javaLevel = 8, runSyntheticTest = false)
 @RunWith(FATRunner.class)
 @Mode(TestMode.FULL)
 public class NoIdentityStoreTest extends JavaEESecTestBase {
@@ -73,8 +73,6 @@ public class NoIdentityStoreTest extends JavaEESecTestBase {
     @AfterClass
     public static void tearDown() throws Exception {
         myServer.stopServer();
-        myServer.setServerConfigurationFile("server.xml");
-
     }
 
     @Before
@@ -105,7 +103,7 @@ public class NoIdentityStoreTest extends JavaEESecTestBase {
      * <LI> Veirfy that CWWKS1930W message is logged.
      * </OL>
      */
-    @Mode(TestMode.LITE)
+    @Mode(TestMode.FULL)
     @Test
     public void testNoIDStoreWithCustomIDSandIDSHandler_NoOp() throws Exception {
         Log.info(logClass, getCurrentTestName(), "-----Entering " + getCurrentTestName());

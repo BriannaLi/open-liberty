@@ -129,7 +129,21 @@ public class ClientImpl implements Client {
         if (address.isEmpty()) {
             address = "/";
         }
-        return target(UriBuilder.fromUri(address));
+
+        // Liberty change start
+        WebTarget target;
+        int braceIndex = address.indexOf('{');
+        if (braceIndex < 0) {
+            UriBuilder builder = UriBuilder.fromUri(address);
+            target = target(builder);
+        } else {
+            String strippedAddress = address.substring(0, braceIndex);
+            String template = address.substring(braceIndex);
+            target = target(UriBuilder.fromUri(strippedAddress));
+            target = target.path(template);
+        }
+        return target;
+        // Liberty change end
     }
 
     @Override

@@ -1,11 +1,37 @@
+#*******************************************************************************
+# Copyright (c) 2018 IBM Corporation and others.
+# All rights reserved. This program and the accompanying materials
+# are made available under the terms of the Eclipse Public License v1.0
+# which accompanies this distribution, and is available at
+# http://www.eclipse.org/legal/epl-v10.html
+#
+# Contributors:
+#     IBM Corporation - initial API and implementation
+#*******************************************************************************
 -include= ~../cnf/resources/bnd/bundle.props
-bVersion=1.0
+bVersion=1.1
 
 Bundle-Name: wim base
 Bundle-Description:  wim base, version ${bVersion}
 Bundle-SymbolicName: com.ibm.websphere.security.wim.base
 
-Private-Package: com.ibm.websphere.security.wim.util.resources 
+Import-Package: \
+ !javax.xml.bind.*, \
+ *
+ 
+# Use dynamicImport-Package for JAXB APIs, with this, Equonix will have a chance to wire
+# those packages to the JAXB-2.2 API if the target bundle is started, or the one from system
+# bundle will be always used due to JAXB 2.2 API is not resolved
+DynamicImport-Package: \
+ javax.xml.bind, \
+ javax.xml.bind.annotation, \
+ javax.xml.bind.annotation.adapters, \
+ javax.xml.bind.attachment, \
+ javax.xml.bind.helpers, \
+ javax.xml.bind.util
+
+Private-Package: \
+ com.ibm.websphere.security.wim.util.resources 
 
 Export-Package: \
  com.ibm.wsspi.security.wim, \

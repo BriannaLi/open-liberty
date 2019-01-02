@@ -19,9 +19,11 @@ ext {
   buildImage = project(':build.image')
 }
 
+
 subprojects {
   plugins.apply 'java'
   def bndProject = bndWorkspace.getProject(name)
+
   if (bndProject != null) {
     plugins.apply 'biz.aQute.bnd'
   } else {
@@ -34,11 +36,12 @@ subprojects {
   /* For Java 9 builds, set the --release compiler flag to keep bootclasspath in sync */
   tasks.withType(JavaCompile) {
     doFirst {
-      if(JavaVersion.current().isJava9Compatible()) {
+      if(JavaVersion.current().isJava9Compatible() && !'off'.equals(bnd('javac.args.release'))) {
         def release = sourceCompatibility
-        if(sourceCompatibility < '9')
+        if(sourceCompatibility.startsWith('1.'))
           release = sourceCompatibility.substring(2);
-        println "Compiling with --release=" + release
+        if('current'.equals(bnd('javac.args.release')))
+          release = JavaVersion.current().getMajorVersion() 
         options.compilerArgs.addAll([ '--release', release])
       }
     }
@@ -76,11 +79,11 @@ task testResults {
   dependsOn subprojects.test
 
   doLast {
-    generatedProps.setProperty('tests.total.failed', failedTestCountTotal.toString())
-    generatedProps.setProperty('tests.total.successful', successfulTestCountTotal.toString())
+    userProps.setProperty('tests.total.failed', failedTestCountTotal.toString())
+    userProps.setProperty('tests.total.successful', successfulTestCountTotal.toString())
 
     File propsFile = new File('generated.properties')
-    generatedProps.store(propsFile.newWriter(), null)
+    userProps.store(propsFile.newWriter(), null)
   }
 }
 

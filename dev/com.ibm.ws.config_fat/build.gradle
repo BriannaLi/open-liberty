@@ -40,9 +40,6 @@ task zipConfigExtJar(type: Zip) {
   from new File(autoFvtDir, 'extracted')
 }
 
-
-
 addRequiredLibraries {
   dependsOn zipConfigExtJar, addRestConnector, addConfigAPIJars
 }
-

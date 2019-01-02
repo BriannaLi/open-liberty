@@ -32,10 +32,10 @@ public class ConsoleLogHandler extends JsonLogHandler implements SynchronousHand
     private boolean isTraceStdout = false;
 
     private String format = LoggingConstants.DEFAULT_MESSAGE_FORMAT;
-    private BaseTraceFormatter formatter = null;
+    private BaseTraceFormatter basicFormatter = null;
     private Integer consoleLogLevel = null;
 
-    private boolean copySystemStreams = false;
+    private static boolean copySystemStreams = false;
 
     private BaseTraceService baseTraceService = null;
 
@@ -76,11 +76,13 @@ public class ConsoleLogHandler extends JsonLogHandler implements SynchronousHand
             throw new IllegalArgumentException("event not an instance of GenericData");
         }
 
-        String eventSourceType = getSourceTypeFromDataObject(genData);
+        String eventSourceName = getSourceNameFromDataObject(genData);
 
         /*
          * To write out to the console must determine if we are JSON or BASIC
-         * 1. JSON OR not a message/log-source event
+         * 1. (JSON OR not a message/log-source event) AND NOT ( tracefile=stdout + basic format config)
+         * Note: The "not a message/log-source event condition" is to ensure any non-message sources that were on-route to the consoleLogHandler
+         * before a switch to 'basic' will be properly formatted as JSON instead of directly going to basic formatter.
          * a) Message
          * - Check if it is above consoleLogLevel OR if it is from SysOut/SysErr AND copySystemStreams is true
          * then format as JSON
@@ -96,12 +98,12 @@ public class ConsoleLogHandler extends JsonLogHandler implements SynchronousHand
          * c) Lastly this leaves message origin from publishLogRecord()
          * - We must check if it is above consoleLogLevel to format it
          */
-        if (format.equals(LoggingConstants.JSON_FORMAT) || !eventSourceType.equals(CollectorConstants.MESSAGES_SOURCE)) {
-            String eventsourceType = getSourceTypeFromDataObject(genData);
+        if ((format.equals(LoggingConstants.JSON_FORMAT) || !eventSourceName.equals(CollectorConstants.MESSAGES_SOURCE))
+            && (!(format.equals(LoggingConstants.DEFAULT_CONSOLE_FORMAT) && eventSourceName.equals(CollectorConstants.TRACE_SOURCE) && isTraceStdout))) {
 
             //First retrieve a cached JSON  message if possible, if not, format it and store it.
             if (genData.getJsonMessage() == null) {
-                genData.setJsonMessage((String) formatEvent(eventsourceType, CollectorConstants.MEMORY, event, null, MAXFIELDLENGTH));
+                genData.setJsonMessage((String) formatEvent(eventSourceName, CollectorConstants.MEMORY, event, null, MAXFIELDLENGTH));
             }
             messageOutput = genData.getJsonMessage();
 
@@ -111,21 +113,21 @@ public class ConsoleLogHandler extends JsonLogHandler implements SynchronousHand
              * we don't want to print this message out. Then check if messageOutput is null. This shouldn't happen, but if it is we need to generate the formatted
              * output
              */
-            if (eventsourceType.equals(CollectorConstants.MESSAGES_SOURCE) && levelVal != null) {
+            if (eventSourceName.equals(CollectorConstants.MESSAGES_SOURCE) && levelVal != null) {
                 if (levelVal >= consoleLogLevel || (copySystemStreams && (levelVal == WsLevel.CONFIG.intValue()))) {
                     if (messageOutput == null) {
-                        messageOutput = (String) formatEvent(eventsourceType, CollectorConstants.MEMORY, genData, null, MAXFIELDLENGTH);
+                        messageOutput = (String) formatEvent(eventSourceName, CollectorConstants.MEMORY, genData, null, MAXFIELDLENGTH);
                     }
                 } else {
                     return;
                 }
             } else {
                 if (messageOutput == null) {
-                    messageOutput = (String) formatEvent(eventsourceType, CollectorConstants.MEMORY, genData, null, MAXFIELDLENGTH);
+                    messageOutput = (String) formatEvent(eventSourceName, CollectorConstants.MEMORY, genData, null, MAXFIELDLENGTH);
                 }
             }
 
-        } else if (format.equals(LoggingConstants.DEFAULT_CONSOLE_FORMAT) && formatter != null) {
+        } else if (format.equals(LoggingConstants.DEFAULT_CONSOLE_FORMAT) && basicFormatter != null) {
             //if traceFilename=stdout write everything to console.log in trace format
             String logLevel = ((LogTraceData) event).getLoglevel();
             if (isTraceStdout) {
@@ -133,7 +135,7 @@ public class ConsoleLogHandler extends JsonLogHandler implements SynchronousHand
                 if (levelVal == WsLevel.ERROR.intValue() || levelVal == WsLevel.FATAL.intValue()) {
                     isStderr = true;
                 }
-                messageOutput = formatter.traceFormatGenData(genData);
+                messageOutput = basicFormatter.traceFormatGenData(genData);
             } // copySystemStream and stderr/stdout (i.e WsLevel.CONFIG)
             else if (copySystemStreams && (levelVal == WsLevel.CONFIG.intValue())) {
                 if (logLevel != null) {
@@ -141,7 +143,7 @@ public class ConsoleLogHandler extends JsonLogHandler implements SynchronousHand
                         isStderr = true;
                     }
                 }
-                messageOutput = formatter.formatStreamOutput(genData);
+                messageOutput = basicFormatter.formatStreamOutput(genData);
 
                 //Null return values means we are suppressing a stack trace.. and we don't want to write a 'null' so we return.
                 if (messageOutput == null)
@@ -153,7 +155,7 @@ public class ConsoleLogHandler extends JsonLogHandler implements SynchronousHand
                 if (levelVal == WsLevel.ERROR.intValue() || levelVal == WsLevel.FATAL.intValue()) {
                     isStderr = true;
                 }
-                messageOutput = formatter.consoleLogFormat(genData);
+                messageOutput = basicFormatter.consoleLogFormat(genData);
             }
         }
 
@@ -190,7 +192,7 @@ public class ConsoleLogHandler extends JsonLogHandler implements SynchronousHand
     }
 
     /**
-     * Set copySystemStreams value that was determined from config by BasegTraceService
+     * Set copySystemStreams value that was determined from config by BaseTraceService
      *
      * @param copySystemStreams value to determine whether to copysystemstreams or not
      */
@@ -200,11 +202,13 @@ public class ConsoleLogHandler extends JsonLogHandler implements SynchronousHand
 
     /**
      * Set BaseTraceFormatter passed from BaseTraceService
+     * This Formatter is used to format the BASIC log events
+     * that pass through
      *
      * @param formatter the BaseTraceFormatter to use
      */
-    public void setFormatter(BaseTraceFormatter formatter) {
-        this.formatter = formatter;
+    public void setBasicFormatter(BaseTraceFormatter formatter) {
+        this.basicFormatter = formatter;
     }
 
     /**

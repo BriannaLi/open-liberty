@@ -1,14 +1,13 @@
-/*
- * IBM Confidential
+/*******************************************************************************
+ * Copyright (c) 2015 IBM Corporation and others.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
  *
- * OCO Source Materials
- *
- * Copyright IBM Corp. 2015
- *
- * The source code for this program is not published or otherwise divested
- * of its trade secrets, irrespective of what has been deposited with the
- * U.S. Copyright Office.
- */
+ * Contributors:
+ *     IBM Corporation - initial API and implementation
+ *******************************************************************************/
 package com.ibm.ws.repository.parsers;
 
 import java.io.File;
@@ -25,9 +24,10 @@ import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
-import javax.xml.bind.JAXBContext;
-import javax.xml.bind.JAXBException;
-import javax.xml.bind.Unmarshaller;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
+import org.w3c.dom.Document;
 
 import com.ibm.ws.product.utility.extension.ifix.xml.IFixInfo;
 import com.ibm.ws.product.utility.extension.ifix.xml.Problem;
@@ -70,10 +70,10 @@ public class IfixParser extends ParserBase implements Parser<IfixResourceWritabl
         ParserBase.ExtractedFileInformation xmlFileInfo = extractFileFromArchive(_jarPayload.getAbsolutePath(), ".*lib\\/fixes.*\\.xml");
         IFixInfo ifixInfo;
         try {
-            JAXBContext jaxbContext = JAXBContext.newInstance(IFixInfo.class);
-            Unmarshaller unmarshaller = jaxbContext.createUnmarshaller();
-            ifixInfo = (IFixInfo) unmarshaller.unmarshal(xmlFileInfo.getExtractedFile());
-        } catch (JAXBException e) {
+            DocumentBuilder docBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+            Document doc = docBuilder.parse(xmlFileInfo.getExtractedFile());
+            ifixInfo = IFixInfo.fromDocument(doc);
+        } catch (Exception e) {
             throw new RepositoryArchiveInvalidEntryException("Parse failure", xmlFileInfo.getSourceArchive(), xmlFileInfo.getSelectedPathFromArchive(), e);
         }
 

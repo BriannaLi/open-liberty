@@ -17,11 +17,9 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
-import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 
 import com.ibm.ws.security.javaeesec.fat_helper.Constants;
@@ -33,14 +31,10 @@ import componenttest.annotation.MinimumJavaLevel;
 import componenttest.custom.junit.runner.FATRunner;
 import componenttest.custom.junit.runner.Mode;
 import componenttest.custom.junit.runner.Mode.TestMode;
-import componenttest.custom.junit.runner.OnlyRunInJava7Rule;
 import componenttest.topology.impl.LibertyServer;
 import componenttest.topology.impl.LibertyServerFactory;
 
-/**
- * Test Description:
- */
-@MinimumJavaLevel(javaLevel = 1.8)
+@MinimumJavaLevel(javaLevel = 8)
 @RunWith(FATRunner.class)
 @Mode(TestMode.LITE)
 public class ProgrammaticTest extends JavaEESecTestBase {
@@ -57,9 +51,6 @@ public class ProgrammaticTest extends JavaEESecTestBase {
     public ProgrammaticTest() {
         super(myServer, logClass);
     }
-
-    @ClassRule
-    public static final TestRule java7Rule = new OnlyRunInJava7Rule();
 
     @Rule
     public TestName name = new TestName();
@@ -79,7 +70,6 @@ public class ProgrammaticTest extends JavaEESecTestBase {
     @AfterClass
     public static void tearDownAfterClass() throws Exception {
         myServer.stopServer("CWWKS1932W");
-        myServer.setServerConfigurationFile("server.xml");
     }
 
     @SuppressWarnings("restriction")
@@ -106,7 +96,7 @@ public class ProgrammaticTest extends JavaEESecTestBase {
         verifyUserResponse(response, Constants.getUserPrincipalNull, Constants.getRemoteUserNull);
         response = executeGetRequestBasicAuthCreds(httpclient, urlHttps + queryString + "?method=authenticate", Constants.javaeesec_basicRoleUser, Constants.javaeesec_basicRolePwd,
                                                    HttpServletResponse.SC_OK);
-        verifyAuthenticatedResponse(response, Constants.getAuthTypeJaspi, Constants.getUserPrincipalFound + Constants.javaeesec_basicRoleUser,
+        verifyAuthenticatedResponse(response, Constants.getAuthTypeBasic, Constants.getUserPrincipalFound + Constants.javaeesec_basicRoleUser,
                                     Constants.getRemoteUserFound + Constants.javaeesec_basicRoleUser);
     }
 

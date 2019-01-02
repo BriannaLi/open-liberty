@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2017 IBM Corporation and others.
+ * Copyright (c) 2017, 2018 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -17,11 +17,13 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import com.ibm.ws.fat.util.LoggingTest;
 import com.ibm.ws.fat.util.SharedServer;
 import com.ibm.ws.fat.wc.WCApplicationHelper;
 
+import componenttest.custom.junit.runner.FATRunner;
 import componenttest.custom.junit.runner.Mode;
 import componenttest.custom.junit.runner.Mode.TestMode;
 
@@ -38,6 +40,7 @@ import componenttest.custom.junit.runner.Mode.TestMode;
  * if a web application - Directory name or the file name relative to the
  * drop-ins directory of Liberty
  */
+@RunWith(FATRunner.class)
 public class WCContextRootPrecedence extends LoggingTest {
 
     private static final Logger LOG = Logger.getLogger(WCServerTest.class.getName());
@@ -57,6 +60,14 @@ public class WCContextRootPrecedence extends LoggingTest {
 
     @BeforeClass
     public static void setUp() throws Exception {
+
+        // Apps defined in server.xml are not present during the first server start and this results in unwanted
+        // CWKZ0014W warning messages.
+        ArrayList<String> expectedErrors = new ArrayList<String>();
+        expectedErrors.add("CWWWC0400E:.*");
+        expectedErrors.add("CWWKC2257E:.*");
+        expectedErrors.add("CWWKZ0014W:.*");
+        SHARED_SERVER.getLibertyServer().addIgnoredErrors(expectedErrors);
 
         LOG.info("Setup : add applications as needed.");
 
@@ -82,28 +93,10 @@ public class WCContextRootPrecedence extends LoggingTest {
         WCApplicationHelper.addWarToServerDropins(SHARED_SERVER.getLibertyServer(),
                                                   "TestDefaultContextPathWithoutStartSlashInvalidCase.war", true, null);
 
-        // Apps defined in server.xml are not present during the first server start and this results in unwanted
-        // CWKZ0014W warning messages. Stop the server with CWKZ0014W as an expected error and on restart remove it because
-        // all apps are now present.
-        ArrayList<String> expectedErrors = new ArrayList<String>();
-        expectedErrors.add("CWWWC0400E:.*");
-        expectedErrors.add("CWWKC2257E:.*");
-        expectedErrors.add("CWWKZ0014W:.*");
-
-        SHARED_SERVER.getLibertyServer().addIgnoredErrors(expectedErrors);
-
-        SHARED_SERVER.getLibertyServer().stopServer();
-
-        expectedErrors.remove("CWWKZ0014W:.*");
-        SHARED_SERVER.getLibertyServer().addIgnoredErrors(expectedErrors);
-
-        SHARED_SERVER.getLibertyServer().startServer();
-
-        LOG.info("Setup : wait for messagess to indicate apps have started");
+        LOG.info("Setup : wait for messages to indicate apps have started");
 
         SHARED_SERVER.getLibertyServer().waitForStringInLog("CWWKZ0001I.* TestContextRootAppNamePrecedence", 10000);
-        SHARED_SERVER.getLibertyServer().waitForStringInLog("CWWKZ0001I.* TestContextRootDirOrFileNamePrecedence",
-                                                            10000);
+        SHARED_SERVER.getLibertyServer().waitForStringInLog("CWWKZ0001I.* TestContextRootDirOrFileNamePrecedence", 10000);
         SHARED_SERVER.getLibertyServer().waitForStringInLog("CWWKZ0001I.* TestContextRootEARAppPrecedence", 10000);
         SHARED_SERVER.getLibertyServer().waitForStringInLog("CWWKZ0001I.* TestContextRootServerXmlPrecedence", 10000);
         SHARED_SERVER.getLibertyServer().waitForStringInLog("CWWKZ0001I.* TestContextRootWebExtPrecedence", 10000);
@@ -112,7 +105,6 @@ public class WCContextRootPrecedence extends LoggingTest {
         SHARED_SERVER.getLibertyServer().waitForStringInLog("CWWKZ0001I.* TestDefaultContextPathWithoutStartSlashInvalidCase", 10000);
 
         LOG.info("Setup : ready to run tests.");
-
     }
 
     @AfterClass

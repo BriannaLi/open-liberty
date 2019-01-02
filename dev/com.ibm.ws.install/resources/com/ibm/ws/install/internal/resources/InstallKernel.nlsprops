@@ -434,6 +434,15 @@ ERROR_NON_FEATURE_CANNOT_INSTALL_TO_EXTENSION=CWWKF1298E: {0} is not a feature a
 ERROR_NON_FEATURE_CANNOT_INSTALL_TO_EXTENSION.explanation=Only features can be installed on a product extension.
 ERROR_NON_FEATURE_CANNOT_INSTALL_TO_EXTENSION.action=Run the installUtility install command again without specifying the extension.
 
+ERROR_FAILED_TO_RESOLVE_FEATURES_FOR_OPEN_LIBERTY=CWWKF1299E: The following features could not be obtained: {0}. Ensure that the features are valid for Open Liberty.
+ERROR_FAILED_TO_RESOLVE_FEATURES_FOR_OPEN_LIBERTY.explanation=The installer could not retrieve the specified features from the connected repositories.
+ERROR_FAILED_TO_RESOLVE_FEATURES_FOR_OPEN_LIBERTY.useraction=If specified features exist, ensure that they are valid for Open Liberty.
+
+ERROR_INVALID_PRODUCT_EDITION_FOR_OPEN_LIBERTY_FEATURE=CWWKF1300E: The feature {0} cannot be installed to IBM WebSphere Application Server Liberty Core edition because it only applies to other IBM WebSphere Application Server Liberty editions and Open Liberty. Use the "find" action of the featureManager command to retrieve a list of features that are applicable to IBM WebSphere Application Server Liberty Core edition.
+ERROR_INVALID_PRODUCT_EDITION_FOR_OPEN_LIBERTY_FEATURE.explanation=The feature is not applicable to the edition of the installed product.
+ERROR_INVALID_PRODUCT_EDITION_FOR_OPEN_LIBERTY_FEATURE.useraction=Install features that are supported by the product edition.
+
+
 # Following messages for info logging purpose
 LOG_INSTALL_FEATURES=CWWKF1300I: Installing the following features: {0}.
 LOG_INSTALL_FEATURES.explanation=The specified features will be installed.
@@ -761,6 +770,14 @@ ERROR_UNKNOWN_OPERATING_SYSTEM.useraction=Please switch to one of the following 
 ERROR_UNKNOWN_OSLIST_VALUE=CWWKF1387E: The value {0} is not a valid entry for the OS directive of {1}.
 ERROR_UNKNOWN_OSLIST_VALUE.explanation=This value will be ignored as it is not a recognized operating system name.
 ERROR_UNKNOWN_OSLIST_VALUE.useraction=Please modify or remove this value from the feature manifest file.
+
+ERROR_ESA_NOT_FOUND=CWWKF1388E: The specified ESA file {0} did not contain any features.
+ERROR_ESA_NOT_FOUND.explanation=A feature will not be installed from the ESA file.
+ERROR_ESA_NOT_FOUND.useraction=Ensure that the individual ESA file provided is valid and contains a feature.
+
+ERROR_SINGLE_REPO_CONNECTION_FAILED=CWWKF1389E: Unable to create a JSON file at {0} for the ESA file {1}.
+ERROR_SINGLE_REPO_CONNECTION_FAILED.explanation=The feature in the ESA file will not be installed.
+ERROR_SINGLE_REPO_CONNECTION_FAILED.useraction=Ensure that write access is available for the directory where the JSON file will be created.
 
 TOOL_DOWNLOAD_FEATURE_OK=CWWKF1500I: The feature has been successfully downloaded.
 TOOL_DOWNLOAD_FEATURE_OK.explanation=The feature was downloaded.

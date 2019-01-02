@@ -75,6 +75,7 @@ import org.apache.cxf.transport.AbstractConduit;
 import org.apache.cxf.transport.Assertor;
 import org.apache.cxf.transport.Conduit;
 import org.apache.cxf.transport.MessageObserver;
+import org.apache.cxf.transport.http.auth.CustomAuthSupplier;
 import org.apache.cxf.transport.http.auth.DefaultBasicAuthSupplier;
 import org.apache.cxf.transport.http.auth.DigestAuthSupplier;
 import org.apache.cxf.transport.http.auth.HttpAuthHeader;
@@ -90,7 +91,10 @@ import org.apache.cxf.workqueue.AutomaticWorkQueue;
 import org.apache.cxf.workqueue.WorkQueueManager;
 import org.apache.cxf.ws.addressing.EndpointReferenceType;
 
+import com.ibm.websphere.ras.Tr;
+import com.ibm.websphere.ras.TraceComponent;
 import com.ibm.ws.ffdc.annotation.FFDCIgnore;
+import com.ibm.ws.jaxrs20.client.component.AsyncClientRunnableWrapperManager;
 
 /*
  * HTTP Conduit implementation.
@@ -159,10 +163,10 @@ public abstract class HTTPConduit
      */
     public static final String KEY_HTTP_CONNECTION = "http.connection";
     public static final String KEY_HTTP_CONNECTION_ADDRESS = "http.connection.address";
-    
+
     public static final String SET_HTTP_RESPONSE_MESSAGE = "org.apache.cxf.transport.http.set.response.message";
     public static final String HTTP_RESPONSE_MESSAGE = "http.responseMessage";
-    
+
     public static final String PROCESS_FAULT_ON_HTTP_400 = "org.apache.cxf.transport.process_fault_on_http_400";
     public static final String NO_IO_EXCEPTIONS = "org.apache.cxf.transport.no_io_exceptions";
     /**
@@ -171,6 +175,7 @@ public abstract class HTTPConduit
     protected static final Logger LOG = LogUtils.getL7dLogger(HTTPConduit.class);
 
     private static boolean hasLoggedAsyncWarning;
+    private static final TraceComponent tc = Tr.register(HTTPConduit.class);
 
     /**
      * This constant holds the suffix ".http-conduit" that is appended to the
@@ -351,6 +356,7 @@ public abstract class HTTPConduit
     /**
      * This method returns the registered Logger for this conduit.
      */
+    @Override
     protected Logger getLogger() {
         return LOG;
     }
@@ -489,6 +495,7 @@ public abstract class HTTPConduit
      * @param message The message to be sent.
      */
     @FFDCIgnore(URISyntaxException.class)
+    @Override
     public void prepare(Message message) throws IOException {
         // This call can possibly change the conduit endpoint address and
         // protocol from the default set in EndpointInfo that is associated
@@ -518,11 +525,11 @@ public abstract class HTTPConduit
         int chunkThreshold = 0;
         final AuthorizationPolicy effectiveAuthPolicy = getEffectiveAuthPolicy(message);
         if (this.authSupplier == null) {
-            this.authSupplier = createAuthSupplier(effectiveAuthPolicy.getAuthorizationType());
+            this.authSupplier = createAuthSupplier(effectiveAuthPolicy);
         }
 
         if (this.proxyAuthSupplier == null) {
-            this.proxyAuthSupplier = createAuthSupplier(proxyAuthorizationPolicy.getAuthorizationType());
+            this.proxyAuthSupplier = createAuthSupplier(proxyAuthorizationPolicy);
         }
 
         if (this.authSupplier.requiresRequestCaching()) {
@@ -604,11 +611,15 @@ public abstract class HTTPConduit
                                                        boolean isChunking,
                                                        int chunkThreshold) throws IOException;
 
-    private HttpAuthSupplier createAuthSupplier(String authType) {
+    private HttpAuthSupplier createAuthSupplier(AuthorizationPolicy authzPolicy) {
+        String authType = authzPolicy.getAuthorizationType();
         if (HttpAuthHeader.AUTH_TYPE_NEGOTIATE.equals(authType)) {
             return new SpnegoAuthSupplier();
         } else if (HttpAuthHeader.AUTH_TYPE_DIGEST.equals(authType)) {
             return new DigestAuthSupplier();
+        } else if (authType != null && !HttpAuthHeader.AUTH_TYPE_BASIC.equals(authType)
+            && authzPolicy.getAuthorization() != null) {
+            return new CustomAuthSupplier();
         } else {
             return new DefaultBasicAuthSupplier();
         }
@@ -654,6 +665,7 @@ public abstract class HTTPConduit
         return (int)ctimeout;
     }
 
+    @Override
     public void close(Message msg) throws IOException {
         InputStream in = msg.getContent(InputStream.class);
         try {
@@ -670,7 +682,16 @@ public abstract class HTTPConduit
                 }
             }
         } finally {
-            super.close(msg);
+            if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
+                Tr.debug(tc, "Finished servicing http request on conduit. ");
+            }
+            try {
+                super.close(msg);
+            } finally {
+                //clean up address within threadlocal of EndPointInfo
+                endpointInfo.resetAddress();  //Liberty #3669
+            }
+
         }
     }
 
@@ -725,10 +746,21 @@ public abstract class HTTPConduit
     /**
      * Close the conduit
      */
+    @Override
     public void close() {
-        if (clientSidePolicy != null) {
-            clientSidePolicy.removePropertyChangeListener(this);
+        try {
+            if (clientSidePolicy != null) {
+                clientSidePolicy.removePropertyChangeListener(this);
+            }
+
+        } finally {
+            if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
+                Tr.debug(tc, "Finished servicing http request on conduit. ");
+            }
+            //clean up address within threadlocal of EndPointInfo
+            endpointInfo.resetAddress();    //Liberty #3669
         }
+
     }
 
     /**
@@ -825,6 +857,7 @@ public abstract class HTTPConduit
      * configuration from spring injection.
      */
     // REVISIT:What happens when the endpoint/bean name is null?
+    @Override
     public String getBeanName() {
         if (endpointInfo.getName() != null) {
             return endpointInfo.getName().toString() + ".http-conduit";
@@ -1041,6 +1074,7 @@ public abstract class HTTPConduit
          *
          * @param inMessage
          */
+        @Override
         @FFDCIgnore(IOException.class)
         public void onMessage(Message inMessage) {
             // disposable exchange, swapped with real Exchange on correlation
@@ -1078,15 +1112,18 @@ public abstract class HTTPConduit
         LOG.warning(sw.toString());
     }
 
+    @Override
     public void assertMessage(Message message) {
         PolicyDataEngine policyDataEngine = bus.getExtension(PolicyDataEngine.class);
         policyDataEngine.assertMessage(message, getClient(), new ClientPolicyCalculator());
     }
 
+    @Override
     public boolean canAssert(QName type) {
         return type.equals(new QName("http://cxf.apache.org/transports/http/configuration", "client"));
     }
 
+    @Override
     public void propertyChange(PropertyChangeEvent evt) {
         if (evt.getSource() == clientSidePolicy
             && "decoupledEndpoint".equals(evt.getPropertyName())) {
@@ -1187,9 +1224,11 @@ public abstract class HTTPConduit
             //actually execute the request
         }
 
+
         @FFDCIgnore(RejectedExecutionException.class)
         protected void handleResponseOnWorkqueue(boolean allowCurrentThread, boolean forceWQ) throws IOException {
-            Runnable runnable = new Runnable() {
+            Runnable runnable = AsyncClientRunnableWrapperManager.wrap(outMessage, new Runnable() {
+                @Override
                 @FFDCIgnore(Throwable.class)
                 public void run() {
                     try {
@@ -1205,7 +1244,7 @@ public abstract class HTTPConduit
                         mo.onMessage(outMessage);
                     }
                 }
-            };
+            });
             HTTPClientPolicy policy = getClient(outMessage);
             boolean exceptionSet = outMessage.getContent(Exception.class) != null;
             if (!exceptionSet) {
@@ -1215,6 +1254,7 @@ public abstract class HTTPConduit
                         final Executor ex2 = ex;
                         final Runnable origRunnable = runnable;
                         runnable = new Runnable() {
+                            @Override
                             public void run() {
                                 outMessage.getExchange().put(Executor.class.getName()
                                                              + ".USING_SPECIFIED", Boolean.TRUE);
@@ -1241,6 +1281,9 @@ public abstract class HTTPConduit
                     } else {
                         outMessage.getExchange().put(Executor.class.getName()
                                                  + ".USING_SPECIFIED", Boolean.TRUE);
+                        if (LOG.isLoggable(Level.FINEST)) {
+                            LOG.log(Level.FINEST, "Executing with " + ex);
+                        }
                         ex.execute(runnable);
                     }
                 } catch (RejectedExecutionException rex) {
@@ -1352,6 +1395,7 @@ public abstract class HTTPConduit
         /**
          * Perform any actions required on stream closure (handle response etc.)
          */
+        @Override
         @FFDCIgnore(value = {HttpRetryException.class, IOException.class, RuntimeException.class})
         public void close() throws IOException {
             try {
@@ -1431,7 +1475,7 @@ public abstract class HTTPConduit
                         .append("\" Transmit cached message to: ")
                         .append(url)
                         .append(": ");
-                    cachedStream.writeCacheTo(b, 16 * 1024);
+                    cachedStream.writeCacheTo(b, 16L * 1024L);
                     LOG.fine(b.toString());
                 }
 

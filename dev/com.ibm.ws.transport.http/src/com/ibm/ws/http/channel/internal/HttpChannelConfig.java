@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2004, 2013 IBM Corporation and others.
+ * Copyright (c) 2004, 2018 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -15,6 +15,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 
 import com.ibm.websphere.channelfw.ChannelData;
 import com.ibm.websphere.ras.Tr;
@@ -137,6 +138,20 @@ public class HttpChannelConfig {
 
     /** Set as an attribute to the HttpEndpoint **/
     private Boolean useH2ProtocolAttribute = null;
+
+    private int http2ConnectionIdleTimeout = 0;
+    private int http2MaxConcurrentStreams = 200;
+    private int http2MaxFrameSize = 57344; //Default to 56kb
+    /** Identifies if the channel has been configured to use X-Forwarded-* and Forwarded headers */
+    private boolean useForwardingHeaders = false;
+    /** Regex to be used to verify that proxies in forwarded headers are known to user */
+    private String proxiesRegex = HttpConfigConstants.DEFAULT_PROXIES_REGEX;
+    private Pattern proxiesPattern = null;
+    /**
+     * Set as an attribute to the remoteIP element to specify if X-Forwarded-* and Forwarded header
+     * values affect the NCSA Access Log remote directives
+     */
+    private boolean useForwardingHeadersInAccessLog = false;
 
     /**
      * Constructor for an HTTP channel config object.
@@ -359,6 +374,31 @@ public class HttpChannelConfig {
                 continue;
             }
 
+            if (key.equalsIgnoreCase(HttpConfigConstants.PROPNAME_H2_CONNECTION_IDLE_TIMEOUT)) {
+                props.put(HttpConfigConstants.PROPNAME_H2_CONNECTION_IDLE_TIMEOUT, value);
+                continue;
+            }
+
+            if (key.equalsIgnoreCase(HttpConfigConstants.PROPNAME_H2_MAX_CONCURRENT_STREAMS)) {
+                props.put(HttpConfigConstants.PROPNAME_H2_MAX_CONCURRENT_STREAMS, value);
+            }
+
+            if (key.equalsIgnoreCase(HttpConfigConstants.PROPNAME_H2_MAX_FRAME_SIZE)) {
+                props.put(HttpConfigConstants.PROPNAME_H2_MAX_FRAME_SIZE, value);
+            }
+
+            if (key.equalsIgnoreCase(HttpConfigConstants.PROPNAME_REMOTE_PROXIES)) {
+                props.put(HttpConfigConstants.PROPNAME_REMOTE_PROXIES, value);
+            }
+
+            if (key.equalsIgnoreCase(HttpConfigConstants.PROPNAME_REMOTE_IP)) {
+                props.put(HttpConfigConstants.PROPNAME_REMOTE_IP, value);
+            }
+
+            if (key.equalsIgnoreCase(HttpConfigConstants.PROPNAME_REMOTE_IP_ACCESS_LOG)) {
+                props.put(HttpConfigConstants.PROPNAME_REMOTE_IP_ACCESS_LOG, value);
+            }
+
             props.put(key, value);
         }
 
@@ -400,6 +440,12 @@ public class HttpChannelConfig {
         parseH2ConnCloseTimeout(props);
         parseH2ConnReadWindowSize(props);
         parsePurgeRemainingResponseBody(props); //PI81572
+        parseH2ConnectionIdleTimeout(props);
+        parseH2MaxConcurrentStreams(props);
+        parseH2MaxFrameSize(props);
+        parseRemoteIp(props);
+        parseRemoteIpProxies(props);
+        parseRemoteIpAccessLog(props);
 
         if (TraceComponent.isAnyTracingEnabled() && tc.isEntryEnabled()) {
             Tr.exit(tc, "parseConfig");
@@ -649,6 +695,61 @@ public class HttpChannelConfig {
         }
     }
 
+    private void parseH2ConnectionIdleTimeout(Map<Object, Object> props) {
+        Object value = props.get(HttpConfigConstants.PROPNAME_H2_CONNECTION_IDLE_TIMEOUT);
+        if (null != value) {
+            try {
+                this.http2ConnectionIdleTimeout = TIMEOUT_MODIFIER * minLimit(convertInteger(value), HttpConfigConstants.MIN_TIMEOUT);
+                if (TraceComponent.isAnyTracingEnabled() && tc.isEventEnabled()) {
+                    Tr.event(tc, "Config: HTTP/2 Connection idle timeout is " + getH2ConnectionIdleTimeout());
+                }
+            } catch (NumberFormatException nfe) {
+                FFDCFilter.processException(nfe, getClass().getName() + ".parseH2ConnectionIdleTimeout", "1");
+                if (TraceComponent.isAnyTracingEnabled() && tc.isEventEnabled()) {
+                    Tr.event(tc, "Config: Invalid HTTP/2 connection idle timeout; " + value);
+                }
+
+            }
+        }
+
+    }
+
+    private void parseH2MaxConcurrentStreams(Map<Object, Object> props) {
+        Object value = props.get(HttpConfigConstants.PROPNAME_H2_MAX_CONCURRENT_STREAMS);
+        if (null != value) {
+            try {
+                this.http2MaxConcurrentStreams = convertInteger(value);
+                if (TraceComponent.isAnyTracingEnabled() && tc.isEventEnabled()) {
+                    Tr.event(tc, "Config: HTTP/2 Max Concurrent Streams is " + getH2MaxConcurrentStreams());
+                }
+            } catch (NumberFormatException nfe) {
+                FFDCFilter.processException(nfe, getClass().getName() + ".parseH2MaxConcurrentStreams", "1");
+                if (TraceComponent.isAnyTracingEnabled() && tc.isEventEnabled()) {
+                    Tr.event(tc, "Config: Invalid HTTP/2 Max Concurrent Streams; " + value);
+
+                }
+            }
+        }
+    }
+
+    private void parseH2MaxFrameSize(Map<Object, Object> props) {
+        Object value = props.get(HttpConfigConstants.PROPNAME_H2_MAX_FRAME_SIZE);
+        if (null != value) {
+            try {
+                this.http2MaxFrameSize = rangeLimit(convertInteger(value), HttpConfigConstants.MIN_LIMIT_FRAME_SIZE, HttpConfigConstants.MAX_LIMIT_FRAME_SIZE);
+                if (TraceComponent.isAnyTracingEnabled() && tc.isEventEnabled()) {
+                    Tr.event(tc, "Config: HTTP/2 Max Frame Size is " + getH2MaxFrameSize());
+                }
+            } catch (NumberFormatException nfe) {
+                FFDCFilter.processException(nfe, getClass().getName() + ".parseH2MaxFrameSize", "1");
+                if (TraceComponent.isAnyTracingEnabled() && tc.isEventEnabled()) {
+                    Tr.event(tc, "Config: Invalid HTTP/2 Frame Size; " + value);
+
+                }
+            }
+        }
+    }
+
     /**
      * Check the input configuration for the size of the parse byte cache to use.
      *
@@ -826,6 +927,56 @@ public class HttpChannelConfig {
             if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
                 Tr.debug(tc, "Config: using logging service", accessLogger);
             }
+        }
+    }
+
+    /**
+     * Check the configuration to see if the remoteIp element has been configured
+     * to consider forwarding header values in the NCSA Access Log
+     *
+     * @param props
+     */
+    private void parseRemoteIp(Map<Object, Object> props) {
+        Object value = props.get(HttpConfigConstants.PROPNAME_REMOTE_IP);
+        if (null != value) {
+
+            this.useForwardingHeaders = convertBoolean(value);
+
+            if (this.useForwardingHeaders && (TraceComponent.isAnyTracingEnabled()) && (tc.isEventEnabled())) {
+                Tr.event(tc, "HTTP Channel Config: remoteIp has been enabled");
+            }
+        }
+
+    }
+
+    /**
+     * @param props
+     */
+    private void parseRemoteIpProxies(Map<Object, Object> props) {
+        String value = (String) props.get(HttpConfigConstants.PROPNAME_REMOTE_PROXIES);
+        if (null != value) {
+            this.proxiesRegex = value;
+
+            if ((TraceComponent.isAnyTracingEnabled()) && (tc.isEventEnabled())) {
+                Tr.event(tc, "RemoteIp Config: proxies regex set to: " + value);
+            }
+        }
+
+        if (this.useForwardingHeaders) {
+            this.proxiesPattern = Pattern.compile(this.proxiesRegex);
+        }
+
+    }
+
+    private void parseRemoteIpAccessLog(Map<Object, Object> props) {
+        Object value = props.get(HttpConfigConstants.PROPNAME_REMOTE_IP_ACCESS_LOG);
+        if (null != value) {
+            this.useForwardingHeadersInAccessLog = convertBoolean(value);
+
+            if ((TraceComponent.isAnyTracingEnabled()) && (tc.isEventEnabled())) {
+                Tr.event(tc, "RemoteIp Config: useRemoteIpInAccessLog set to: " + useForwardingHeadersInAccessLog);
+            }
+
         }
     }
 
@@ -1284,6 +1435,18 @@ public class HttpChannelConfig {
      */
     public Boolean getUseH2ProtocolAttribute() {
         return this.useH2ProtocolAttribute;
+    }
+
+    public int getH2ConnectionIdleTimeout() {
+        return this.http2ConnectionIdleTimeout;
+    }
+
+    public int getH2MaxFrameSize() {
+        return this.http2MaxFrameSize;
+    }
+
+    public int getH2MaxConcurrentStreams() {
+        return this.http2MaxConcurrentStreams;
     }
 
     /**
@@ -1781,5 +1944,24 @@ public class HttpChannelConfig {
     public boolean shouldPurgeRemainingResponseBody() {
         // PI81572
         return this.purgeRemainingResponseBody;
+    }
+
+    public boolean useForwardingHeaders() {
+        return this.useForwardingHeaders;
+    }
+
+    public Pattern getForwardedProxiesRegex() {
+        if (this.proxiesPattern == null) {
+            this.proxiesPattern = Pattern.compile(this.proxiesRegex);
+        }
+
+        return this.proxiesPattern;
+    }
+
+    /**
+     * @return
+     */
+    public boolean useForwardingHeadersInAccessLog() {
+        return (this.useForwardingHeadersInAccessLog && this.useForwardingHeaders);
     }
 }

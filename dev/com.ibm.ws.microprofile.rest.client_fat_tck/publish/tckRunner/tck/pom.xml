@@ -23,7 +23,6 @@
 
         <!-- the below is used in arquillian.xml -->
         <wlp>${wlp}</wlp>
-        <!-- <wlp>${project.basedir}/../../../../build.image/wlp/</wlp> -->
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
@@ -66,7 +65,7 @@
         <dependency>
             <groupId>com.ibm.ws.org.apache.cxf</groupId>
             <artifactId>cxf.rt.rs.mp.client</artifactId>
-            <version>3.2.4</version>
+            <version>3.2.6.20180718</version>
             <scope>system</scope>
             <systemPath>${com.ibm.ws.org.apache.cxf.cxf.rt.rs.mp.client.3.2_}</systemPath>
         </dependency>
@@ -118,7 +117,6 @@
             <!--  <scope>provided</scope> -->
             <scope>system</scope>
             <systemPath>${com.ibm.websphere.javaee.jaxrs.2.0_}</systemPath>
-            <!-- <systemPath>/home/andymc/mpRestClientTCK/open-liberty/dev/build.image/wlp/dev/api/spec/com.ibm.websphere.javaee.jaxrs.2.0_1.0.19.jar</systemPath> -->
         </dependency>
 
         <dependency>
@@ -153,13 +151,11 @@
         </dependency>
 
         <dependency>
-            <groupId>com.ibm.ws.org.jboss.arquillian.container</groupId>
-            <artifactId>arquillian-wlp-managed-8.5</artifactId>
-            <version>1.0.0.Final-SNAPSHOT</version>
-            <!-- <version>1.0.0.Final-20180108.155248-1</version> -->
+            <groupId>io.openliberty.arquillian</groupId>
+            <artifactId>arquillian-liberty-managed</artifactId>
+            <version>1.0.3</version>
             <scope>test</scope>
         </dependency>
-
 <!-- 
         <dependency>
             <groupId>com.github.tomakehurst</groupId>
@@ -178,7 +174,20 @@
             <!-- <scope>system</scope>
             <systemPath>${basedir}/../../servers/FATServer/wiremock-standalone-2.14.0.jar</systemPath> -->
         </dependency>
-        
+
+        <dependency>
+            <groupId>javax.xml.bind</groupId>
+            <artifactId>jaxb-api</artifactId>
+            <version>2.2.11</version>
+            <scope>test</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>javax.activation</groupId>
+            <artifactId>javax.activation-api</artifactId>
+            <version>1.2.0</version>
+            <scope>test</scope>
+        </dependency>
         
     </dependencies>
  
@@ -217,9 +226,11 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>2.17</version>
                 <configuration>
+                    <!-- <argLine>-verbose:class</argLine> -->
                     <!-- <argLine>-Dwas.debug.mode=true -Dcom.ibm.websphere.ras.inject.at.transform=true -Dsun.reflect.noInflation=true -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=7777</argLine> -->
                     <systemPropertyVariables>
                         <wlp>${wlp}</wlp>
+                        <argLine>-Dfile.encoding=UTF-8</argLine> <!-- Needed for ZOS becuase arquillian calls string.getBtytes() -->
                         <!-- <wlp>/home/andymc/mpRestClientTCK/open-liberty/dev/build.image/wlp</wlp> -->
                         <!-- <tck_server>${tck_server}</tck_server> -->
                         <tck_server>FATServer</tck_server>

@@ -20,6 +20,9 @@ public class WebResponseUtils {
             Log.info(thisClass, "getResponseText", "pageOrResponse is null");
             return null;
         }
+        if (pageOrResponse instanceof String) {
+            return (String) pageOrResponse;
+        }
         if (pageOrResponse instanceof com.meterware.httpunit.WebResponse) {
             return ((com.meterware.httpunit.WebResponse) pageOrResponse).getText();
         }
@@ -42,6 +45,9 @@ public class WebResponseUtils {
         }
         if (pageOrResponse instanceof com.gargoylesoftware.htmlunit.xml.XmlPage) {
             return ((com.gargoylesoftware.htmlunit.xml.XmlPage) pageOrResponse).getWebResponse();
+        }
+        if (pageOrResponse instanceof com.gargoylesoftware.htmlunit.UnexpectedPage) {
+            return ((com.gargoylesoftware.htmlunit.UnexpectedPage) pageOrResponse).getWebResponse();
         }
         throw new Exception("Unknown response type: " + pageOrResponse.getClass().getName());
     }
@@ -81,6 +87,9 @@ public class WebResponseUtils {
         if (pageOrResponse instanceof com.gargoylesoftware.htmlunit.xml.XmlPage) {
             return pageOrResponse.getClass().getName() + " has no title";
         }
+        if (pageOrResponse instanceof com.gargoylesoftware.htmlunit.UnexpectedPage) {
+            return pageOrResponse.getClass().getName() + " has no title";
+        }
         throw new Exception("Unknown response type: " + pageOrResponse.getClass().getName());
     }
 
@@ -111,6 +120,9 @@ public class WebResponseUtils {
         }
         if (pageOrResponse instanceof com.gargoylesoftware.htmlunit.xml.XmlPage) {
             return ((com.gargoylesoftware.htmlunit.xml.XmlPage) pageOrResponse).getUrl();
+        }
+        if (pageOrResponse instanceof com.gargoylesoftware.htmlunit.UnexpectedPage) {
+            return ((com.gargoylesoftware.htmlunit.UnexpectedPage) pageOrResponse).getUrl();
         }
         throw new Exception("Unknown response type: " + pageOrResponse.getClass().getName());
     }
@@ -243,6 +255,9 @@ public class WebResponseUtils {
         }
         if (pageOrResponse instanceof com.gargoylesoftware.htmlunit.xml.XmlPage) {
             return ((com.gargoylesoftware.htmlunit.xml.XmlPage) pageOrResponse).isHtmlPage();
+        }
+        if (pageOrResponse instanceof com.gargoylesoftware.htmlunit.UnexpectedPage) {
+            return ((com.gargoylesoftware.htmlunit.UnexpectedPage) pageOrResponse).isHtmlPage();
         }
         throw new Exception("Unknown response type: " + pageOrResponse.getClass().getName());
     }

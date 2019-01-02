@@ -10,8 +10,6 @@
  *******************************************************************************/
 package com.ibm.ws.security.fat.common.expectations;
 
-import javax.servlet.http.HttpServletResponse;
-
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -147,53 +145,18 @@ public class ExpectationTest extends CommonExpectationTestClass {
         }
     }
 
-    /************************************** createResponseStatusExpectation **************************************/
+    /************************************** createExceptionExpectation **************************************/
 
     @Test
-    public void test_createResponseStatusExpectation_nullAction() {
+    public void test_createExceptionExpectation_nullArgs() {
         try {
             String testAction = null;
-            int statusCode = -12345;
-
-            Expectation exp = Expectation.createResponseStatusExpectation(testAction, statusCode);
-
-            String failureMsg = "Did not receive status code [" + statusCode + "] during test action [" + testAction + "].";
-            verifyExpectationValues(exp, testAction, Constants.RESPONSE_STATUS, Constants.STRING_EQUALS, null, Integer.toString(statusCode), failureMsg);
-
-        } catch (Throwable t) {
-            outputMgr.failWithThrowable(testName.getMethodName(), t);
-        }
-    }
-
-    @Test
-    public void test_createResponseStatusExpectation() {
-        try {
-            String testAction = "Some test action";
-            int statusCode = HttpServletResponse.SC_BAD_GATEWAY;
-
-            Expectation exp = Expectation.createResponseStatusExpectation(testAction, statusCode);
-
-            String failureMsg = "Did not receive status code [" + statusCode + "] during test action [" + testAction + "].";
-            verifyExpectationValues(exp, testAction, Constants.RESPONSE_STATUS, Constants.STRING_EQUALS, null, Integer.toString(statusCode), failureMsg);
-
-        } catch (Throwable t) {
-            outputMgr.failWithThrowable(testName.getMethodName(), t);
-        }
-    }
-
-    /************************************** createJsonExpectation **************************************/
-
-    @Test
-    public void test_createJsonExpectation_nullArgs() {
-        try {
-            String testAction = null;
-            String searchForKey = null;
-            String searchForVal = null;
+            String searchForValue = null;
             String failureMsg = null;
 
-            Expectation exp = Expectation.createJsonExpectation(testAction, searchForKey, searchForVal, failureMsg);
+            Expectation exp = Expectation.createExceptionExpectation(testAction, searchForValue, failureMsg);
 
-            verifyExpectationValues(exp, testAction, Constants.JSON_OBJECT, null, searchForKey, searchForVal, failureMsg);
+            verifyExpectationValues(exp, testAction, Constants.RESPONSE_FULL, Constants.STRING_CONTAINS, null, searchForValue, failureMsg);
 
         } catch (Throwable t) {
             outputMgr.failWithThrowable(testName.getMethodName(), t);
@@ -201,13 +164,16 @@ public class ExpectationTest extends CommonExpectationTestClass {
     }
 
     @Test
-    public void test_createJsonExpectation() {
+    public void test_createExceptionExpectation() {
         try {
-            String searchForKey = "searchForKey";
 
-            Expectation exp = Expectation.createJsonExpectation(TEST_ACTION, searchForKey, SEARCH_FOR_VAL, FAILURE_MESSAGE);
+            String testAction = "testAction";
+            String searchForValue = "I'm looking for this value.";
+            String failureMsg = "Some failure message.";
 
-            verifyExpectationValues(exp, TEST_ACTION, Constants.JSON_OBJECT, null, searchForKey, SEARCH_FOR_VAL, FAILURE_MESSAGE);
+            Expectation exp = Expectation.createExceptionExpectation(testAction, searchForValue, failureMsg);
+
+            verifyExpectationValues(exp, testAction, Constants.RESPONSE_FULL, Constants.STRING_CONTAINS, null, searchForValue, failureMsg);
 
         } catch (Throwable t) {
             outputMgr.failWithThrowable(testName.getMethodName(), t);

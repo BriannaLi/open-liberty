@@ -81,7 +81,8 @@ action-desc.package=\tCompacte um servidor para um archive. A op\u00e7\u00e3o --
 \tA op\u00e7\u00e3o --include pode ser usada com valores "all", "usr", "minify", \n\
 \t"wlp", "runnable", "all,runnable" e "minify,runnable". Os valores \n\
 \t"runnable" e "all,runnable" s\u00e3o equivalentes. O valor "runnable"   \n\
-\tfunciona somente com archives do tipo "jar".
+\tfunciona somente com archives do tipo "jar". A op\u00e7\u00e3o --server-root pode ser \n\
+\tusada para especificar a pasta raiz no archive do pacote.
 #------------------------------\n at 72 chars -- leading tab-----------\n\#
 action-key.dump=\ \ \ \ --dump
 action-desc.dump=\tExecute dump das informa\u00e7\u00f5es de diagn\u00f3stico a partir do servidor em um archive. A op\u00e7\u00e3o\n\
@@ -148,12 +149,13 @@ option-key.include=\ \ \ \ --include=value,value,...
 option-desc.javadump.include=\tUma lista de valores delimitada por v\u00edrgula. Os valores v\u00e1lidos s\u00e3o: heap, system \n\
 \tthread.
 option-desc.package.include=\tUma lista de valores delimitada por v\u00edrgula. Os valores v\u00e1lidos s\u00e3o: all*, usr,   \n\
-\tminify, runnable. Se voc\u00ea especificar runnable, o pacote resultante \n\
-\tser\u00e1 um jar execut\u00e1vel que executa o servidor. A op\u00e7\u00e3o minify produz \n\
-\ta menor imagem poss\u00edvel para o servidor. A op\u00e7\u00e3o usr cria um \n\
-\tpacote que cont\u00e9m o servidor e o aplicativo, mas n\u00e3o o \n\
-\ttempo de execu\u00e7\u00e3o. A op\u00e7\u00e3o all padr\u00e3o produz um pacote do servidor que \n\
-\tcont\u00e9m tudo.
+\tminify, runnable, wlp. Se voc\u00ea especificar runnable, o pacote resultante \n\
+\tser\u00e1 um jar execut\u00e1vel que executa o servidor. A op\u00e7\u00e3o minify    \n\
+\tproduz a menor imagem poss\u00edvel para o servidor. A op\u00e7\u00e3o usr  \n\
+\tcria um pacote que cont\u00e9m o servidor e o aplicativo, mas n\u00e3o  \n\
+\to tempo de execu\u00e7\u00e3o. A op\u00e7\u00e3o wlp produz um tempo de execu\u00e7\u00e3o que n\u00e3o cont\u00e9m \n\
+\ta configura\u00e7\u00e3o do servidor. A op\u00e7\u00e3o all padr\u00e3o produz um pacote   \n\
+\tdo servidor que cont\u00e9m tudo.
 #------------------------------\n at 72 chars -- leading tab-----------\n\#
 option-key.template=\ \ \ \ --template="nome_do_Modelo"
 option-desc.template=\tEspecifique o nome do modelo a ser usado ao criar um novo servidor. 
@@ -165,4 +167,10 @@ option-key.os=\ \ \ \ --os=value,value,...
 option-desc.os=\tEspecifica os sistemas operacionais que voc\u00ea deseja que o servidor em pacote \n \tsuporte. Forne\u00e7a uma lista separada por v\u00edrgula. O valor padr\u00e3o \u00e9 qualquer um,    \n \tindicando que o servidor deve ser implement\u00e1vel em qualquer sistema operacional  \n \tsuportado pela origem.                                      \n \tPara especificar que um sistema operacional n\u00e3o deve ser suportado, prefixe-o\n \tcom um sinal de menos ("-"). Para obter uma lista de valores do sistema \
 operacional, consulte\n \to website do OSGi Alliance na seguinte URL:                  \n \thttp://www.osgi.org/Specifications/Reference#os                      \n\
 \tEssa op\u00e7\u00e3o se aplica somente \u00e0 opera\u00e7\u00e3o de pacote e pode ser usada somente  \n \tcom a op\u00e7\u00e3o --include=minify. Se voc\u00ea excluir um sistema operacional, \n \tn\u00e3o \
-ser\u00e1 poss\u00edvel inclu\u00ed-lo posteriormente, se voc\u00ea repetir a opera\u00e7\u00e3o minify         \n \tno archive. 
+ser\u00e1 poss\u00edvel inclu\u00ed-lo posteriormente, se voc\u00ea repetir a opera\u00e7\u00e3o minify         \n \tno archive.
+#------------------------------\n at 72 chars -- leading tab-----------\n\# 
+option-key.no-password=\ \ \ \ --no-password
+option-desc.no-password=\tDesativar gera\u00e7\u00e3o de senha de keystore padr\u00e3o
+#------------------------------\n at 72 chars -- leading tab-----------\n\#
+option-key.server-root=\ \ \ \ --server-root="pasta do servidor raiz no archive"
+option-desc.package.server-root=\tEspecifica o nome da pasta do servidor raiz no archive.

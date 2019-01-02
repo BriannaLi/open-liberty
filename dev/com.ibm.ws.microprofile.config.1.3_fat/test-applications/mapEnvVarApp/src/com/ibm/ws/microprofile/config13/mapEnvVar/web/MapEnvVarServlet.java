@@ -30,7 +30,7 @@ public class MapEnvVarServlet extends FATServlet {
     private Config config = null;
 
     @Test
-    public void appPropertiesTest() throws Exception {
+    public void mapEnvVarTest() throws Exception {
 
         ConfigBuilder builder = ConfigProviderResolver.instance().getBuilder();
         builder.addDefaultSources();
@@ -88,7 +88,7 @@ public class MapEnvVarServlet extends FATServlet {
     private void getAndCheckEnvVarValue(String key, String expectedValue) {
         String value = config.getOptionalValue(key, String.class).orElse("not there");
         System.out.println("NYTRACE: Seek: " + key + ", Expected: " + expectedValue + ", Found: " + value);
-        assertEquals(value, expectedValue);
+        assertEquals("Incorrect value found", expectedValue, value);
     }
 
 }

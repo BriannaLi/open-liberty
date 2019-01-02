@@ -161,14 +161,32 @@ public class InjectInjectionObjectFactory {
             Object injectionObject = AccessController.doPrivileged(new PrivilegedAction<Object>() {
                 @Override
                 public Object run() {
+                    if (TraceComponent.isAnyTracingEnabled() && tc.isEntryEnabled()) {
+                        Tr.entry(tc, "run");
+                    }
                     Object ref = null;
                     if ((injectionPoint.getAnnotated() instanceof AnnotatedParameter<?>)
+                            && injectionPoint.getAnnotated().getBaseType().equals(InjectionPoint.class)){
+                        if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
+                            Tr.debug(tc, "Creating an InjectionPoint for {0}", injectionPoint);
+                        }
+                        ref = localBeanManager.createInjectionPoint((AnnotatedParameter<?>) injectionPoint.getAnnotated());
+                    }
+                    else if ((injectionPoint.getAnnotated() instanceof AnnotatedParameter<?>)
                             && (((AnnotatedParameter<?>) injectionPoint.getAnnotated()).isAnnotationPresent(TransientReference.class))) {
+                        if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
+                            Tr.debug(tc, "Getting an injectable ref from the bean manager with {0}, {1}", injectionPoint, Util.identity(methodInvocactionContext));
+                        }
                         ref = localBeanManager.getInjectableReference(injectionPoint, methodInvocactionContext);
                     } else {
+                        if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
+                            Tr.debug(tc, "Getting an injectable ref from the bean manager with {0}, {1}", injectionPoint, Util.identity(cc));
+                        }
                         ref = localBeanManager.getInjectableReference(injectionPoint, cc);
                     }
-
+                    if (TraceComponent.isAnyTracingEnabled() && tc.isEntryEnabled()) {
+                        Tr.exit(tc, "run", Util.identity(ref));
+                    }
                     return ref;
                 }
             });
@@ -192,13 +210,23 @@ public class InjectInjectionObjectFactory {
         if (references.size() == 1) {
                 Object reference = references.get(0);
             if (TraceComponent.isAnyTracingEnabled() && tc.isEntryEnabled()) {
-                Tr.exit(tc, "getObjectInstance", reference);
+                Tr.exit(tc, "getObjectInstance", Util.identity(reference));
             }
             return reference;
         } else {
             Object[] referencesArray = references.toArray(new Object[references.size()]);
             if (TraceComponent.isAnyTracingEnabled() && tc.isEntryEnabled()) {
-                Tr.exit(tc, "getObjectInstance", referencesArray);
+                StringBuilder exitStringBuilder = new StringBuilder("[");
+                boolean first = true;
+                for (Object object : referencesArray){ 
+                    if(!first){
+                        exitStringBuilder.append(", ");
+                    }
+                    else first = false;
+                    exitStringBuilder.append(Util.identity(object));
+                }
+                exitStringBuilder.append("]");
+                Tr.exit(tc, "getObjectInstance", exitStringBuilder.toString());
             }
             return referencesArray;
         }

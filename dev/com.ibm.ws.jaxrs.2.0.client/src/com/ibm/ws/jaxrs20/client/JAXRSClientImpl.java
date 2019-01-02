@@ -47,13 +47,12 @@ import com.ibm.websphere.ras.TraceComponent;
 import com.ibm.websphere.ras.annotation.Sensitive;
 import com.ibm.ws.jaxrs20.bus.LibertyApplicationBus;
 import com.ibm.ws.jaxrs20.client.bus.LibertyJAXRSClientBusFactory;
+import com.ibm.ws.jaxrs20.client.configuration.LibertyJaxRsClientConfigInterceptor;
 import com.ibm.ws.jaxrs20.client.configuration.LibertyJaxRsClientProxyInterceptor;
-import com.ibm.ws.jaxrs20.client.configuration.LibertyJaxRsClientTimeOutInterceptor;
 import com.ibm.ws.jaxrs20.client.security.LibertyJaxRsClientSSLOutInterceptor;
 import com.ibm.ws.jaxrs20.client.security.ltpa.LibertyJaxRsClientLtpaInterceptor;
 import com.ibm.ws.jaxrs20.client.security.oauth.LibertyJaxRsClientOAuthInterceptor;
 import com.ibm.ws.jaxrs20.client.security.saml.PropagationHandler;
-import com.ibm.ws.jaxrs20.client.util.JaxRSClientUtil;
 import com.ibm.ws.jaxrs20.providers.api.JaxRsProviderRegister;
 import com.ibm.ws.runtime.metadata.ComponentMetaData;
 import com.ibm.ws.runtime.metadata.ModuleMetaData;
@@ -171,8 +170,8 @@ public class JAXRSClientImpl extends ClientImpl {
         //get ClientCongfiguration
         ClientConfiguration ccfg = WebClient.getConfig(targetClient);
 
-        //add Liberty Jax-RS Client Timeout Interceptor to configure the timeout
-        ccfg.getOutInterceptors().add(new LibertyJaxRsClientTimeOutInterceptor(Phase.PRE_LOGICAL));
+        //add Liberty Jax-RS Client Config Interceptor to configure things like KeepAlive, timeouts, etc.
+        ccfg.getOutInterceptors().add(new LibertyJaxRsClientConfigInterceptor(Phase.PRE_LOGICAL));
 
         //add Liberty Jax-RS Client Proxy Interceptor to configure the proxy
         ccfg.getOutInterceptors().add(new LibertyJaxRsClientProxyInterceptor(Phase.PRE_LOGICAL));
@@ -201,7 +200,7 @@ public class JAXRSClientImpl extends ClientImpl {
         //202957 same url use same bus, add a lock to busCache to ensure only one bus will be created in concurrent mode.
         //ConcurrentHashMap can't ensure that.
         String moduleName = getModuleName();
-        String id = moduleName + JaxRSClientUtil.convertURItoBusId(uri.toString());
+        String id = moduleName + uri.getHost() + "-" + uri.getPort();
         synchronized (busCache) {
             bus = busCache.get(id);
             if (bus == null) {

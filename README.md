@@ -2,10 +2,10 @@
 
 # OpenLiberty
 
-[![Twitter](https://img.shields.io/twitter/url/http/shields.io.svg?style=social)](https://twitter.com/OpenLibertyIO)
+[![Twitter](https://img.shields.io/twitter/follow/openlibertyio.svg?style=social&label=Follow)](https://twitter.com/OpenLibertyIO)
 [![License](https://img.shields.io/badge/License-EPL%201.0-green.svg)](https://opensource.org/licenses/EPL-1.0)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
-[![Maven Central](https://img.shields.io/maven-central/v/io.openliberty/openliberty-runtime.svg)](https://search.maven.org/#artifactdetails%7Cio.openliberty%7Copenliberty-runtime%7C18.0.0.1%7Czip)
+[![Maven Central](https://img.shields.io/maven-central/v/io.openliberty/openliberty-runtime.svg?label=Maven%20Central)](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22io.openliberty%22%20a%3A%22openliberty-runtime%22)
 
 # Summary
 Open Liberty is a highly composable, fast to start, dynamic application server runtime environment.
@@ -23,9 +23,9 @@ You can download released versions and nightly build artifacts from: https://www
 ### Quick start
     git clone https://github.com/OpenLiberty/sample-getting-started.git
     cd sample-getting-started
-    mvn clean install
+    mvn clean package liberty:run-server
 
-Open browser to http://localhost:9080/ and explore the demo application. Afterwards run `mvn liberty:stop-server` to stop the server.
+Open browser to http://localhost:9080/ and explore the demo application.
 
 ### Open Liberty Guides
 Visit the [OpenLiberty website](https://openliberty.io/guides/) for a number of step by step guides.
@@ -44,7 +44,7 @@ Our [CONTRIBUTING](https://github.com/OpenLiberty/open-liberty/blob/master/CONTR
     
     ```./gradlew cnf:initialize```
     
-    ```./gradlew assemble :com.ibm.websphere.appserver.features:releaseNeeded```
+    ```./gradlew assemble```
 
 3. Run the unit or FAT tests.
 

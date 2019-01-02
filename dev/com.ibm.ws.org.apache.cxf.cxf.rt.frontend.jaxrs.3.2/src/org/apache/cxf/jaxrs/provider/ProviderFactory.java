@@ -35,8 +35,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
@@ -44,8 +44,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 import javax.json.bind.spi.JsonbProvider;
 import javax.json.spi.JsonProvider;
@@ -123,16 +123,19 @@ public abstract class ProviderFactory {
     protected Map<NameKey, ProviderInfo<ReaderInterceptor>> readerInterceptors = new NameKeyMap<ProviderInfo<ReaderInterceptor>>(true);
     protected Map<NameKey, ProviderInfo<WriterInterceptor>> writerInterceptors = new NameKeyMap<ProviderInfo<WriterInterceptor>>(true);
 
-    private final List<ProviderInfo<MessageBodyReader<?>>> messageReaders =
-        new CopyOnWriteArrayList<ProviderInfo<MessageBodyReader<?>>>();
-    private final List<ProviderInfo<MessageBodyWriter<?>>> messageWriters =
-        new CopyOnWriteArrayList<ProviderInfo<MessageBodyWriter<?>>>();
-    private final List<ProviderInfo<ContextResolver<?>>> contextResolvers =
-        new CopyOnWriteArrayList<ProviderInfo<ContextResolver<?>>>();
-    private final List<ProviderInfo<ContextProvider<?>>> contextProviders =
-        new CopyOnWriteArrayList<ProviderInfo<ContextProvider<?>>>();
+    //Liberty code change start
+    private final AtomicReferenceProviderList<MessageBodyReader<?>> messageReaders =
+        new AtomicReferenceProviderList<>();
+    private final AtomicReferenceProviderList<MessageBodyWriter<?>> messageWriters =
+        new AtomicReferenceProviderList<>();
+    private final AtomicReferenceProviderList<ContextResolver<?>> contextResolvers =
+        new AtomicReferenceProviderList<>();
+    private final AtomicReferenceProviderList<ContextProvider<?>> contextProviders =
+        new AtomicReferenceProviderList<>();
+    private final AtomicReferenceProviderList<ParamConverterProvider> paramConverters =
+                    new AtomicReferenceProviderList<>();
+    //Liberty code change end
 
-    private final List<ProviderInfo<ParamConverterProvider>> paramConverters = new ArrayList<ProviderInfo<ParamConverterProvider>>(1);
     private boolean paramConverterContextsAvailable;
     // List of injected providers
     private final Collection<ProviderInfo<?>> injectedProviders = new HashSet<ProviderInfo<?>>();
@@ -232,11 +235,15 @@ public abstract class ProviderFactory {
 
             @Override
             public JsonProvider run() {
+                try {
                 Bundle b = FrameworkUtil.getBundle(ProviderFactory.class);
                 if(b != null) {
                     BundleContext bc = b.getBundleContext();
                     ServiceReference<JsonProvider> sr = bc.getServiceReference(JsonProvider.class);
                     return (JsonProvider)bc.getService(sr);
+                }
+                } catch (NoClassDefFoundError ncdfe) {
+                    // ignore - return null
                 }
                 return null;
             }});
@@ -266,11 +273,15 @@ public abstract class ProviderFactory {
 
             @Override
             public JsonbProvider run() {
+                try {
                 Bundle b = FrameworkUtil.getBundle(ProviderFactory.class);
                 if(b != null) {
                     BundleContext bc = b.getBundleContext();
                     ServiceReference<JsonbProvider> sr = bc.getServiceReference(JsonbProvider.class);
                     return (JsonbProvider)bc.getService(sr);
+                }
+                } catch (NoClassDefFoundError ncdfe) {
+                    // ignore - return null
                 }
                 return null;
             }});
@@ -322,9 +333,7 @@ public abstract class ProviderFactory {
                         if (argCls != null && argCls.isAssignableFrom(contextCls)) {
                             List<MediaType> mTypes = JAXRSUtils.getProduceTypes(
                                                                                 cr.getProvider().getClass().getAnnotation(Produces.class));
-                            //Liberty code change begin
                             if (JAXRSUtils.doMimeTypesIntersect(mTypes, type)) {
-                            //Liberty code change end
                                 injectContextValues(cr, m);
                                 candidates.add((ContextResolver<T>) cr.getProvider());
                             }
@@ -733,6 +742,14 @@ public abstract class ProviderFactory {
 
     @SuppressWarnings("unchecked")
     protected void setCommonProviders(List<ProviderInfo<? extends Object>> theProviders) {
+        //Liberty code change start
+        List<ProviderInfo<MessageBodyReader<?>>> newReaders = new ArrayList<ProviderInfo<MessageBodyReader<?>>>();
+        List<ProviderInfo<MessageBodyWriter<?>>> newWriters = new ArrayList<ProviderInfo<MessageBodyWriter<?>>>();
+        List<ProviderInfo<ContextResolver<?>>> newResolvers = new ArrayList<ProviderInfo<ContextResolver<?>>>();
+        List<ProviderInfo<ContextProvider<?>>> newContextProviders = new ArrayList<ProviderInfo<ContextProvider<?>>>();
+        List<ProviderInfo<ParamConverterProvider>> newParamConverters = new ArrayList<ProviderInfo<ParamConverterProvider>>();
+        //Liberty code change end
+
         List<ProviderInfo<ReaderInterceptor>> readInts =
             new LinkedList<ProviderInfo<ReaderInterceptor>>();
         List<ProviderInfo<WriterInterceptor>> writeInts =
@@ -741,19 +758,27 @@ public abstract class ProviderFactory {
             Class<?> providerCls = ClassHelper.getRealClass(bus, provider.getProvider());
 
             if (filterContractSupported(provider, providerCls, MessageBodyReader.class)) {
-                addProviderToList(messageReaders, provider);
+                //Liberty code change start
+                addProviderToList(newReaders, provider);
+                //Liberty code change end
             }
 
             if (filterContractSupported(provider, providerCls, MessageBodyWriter.class)) {
-                addProviderToList(messageWriters, provider);
+                //Liberty code change start
+                addProviderToList(newWriters, provider);
+                //Liberty code change end
             }
 
             if (filterContractSupported(provider, providerCls, ContextResolver.class)) {
-                addProviderToList(contextResolvers, provider);
+                //Liberty code change start
+                addProviderToList(newResolvers, provider);
+                //Liberty code change end
             }
 
             if (ContextProvider.class.isAssignableFrom(providerCls)) {
-                addProviderToList(contextProviders, provider);
+                //Liberty code change start
+                addProviderToList(newContextProviders, provider);
+                //Liberty code change end
             }
 
             if (filterContractSupported(provider, providerCls, ReaderInterceptor.class)) {
@@ -765,18 +790,35 @@ public abstract class ProviderFactory {
             }
 
             if (filterContractSupported(provider, providerCls, ParamConverterProvider.class)) {
-                paramConverters.add((ProviderInfo<ParamConverterProvider>) provider);
+                //Liberty code change start
+                addProviderToList(newParamConverters, provider);
+                //Liberty code change end
             }
         }
-        sortReaders();
-        sortWriters();
-        sortContextResolvers();
-        sortParamConverters();
+        //Liberty code change start
+        if (newReaders.size() > 0) {
+            addAndSortReaders(newReaders, false);
+        }
+        if (newWriters.size() > 0) {
+            addAndSortWriters(newWriters, false);
+        }
+        if (newResolvers.size() > 0) {
+            contextResolvers.addAndSortProviders(newResolvers, new ContextResolverComparator(), false);
+        }
+        if (newContextProviders.size() > 0) {
+            contextProviders.addProviders(newContextProviders);
+        }
+        if (newParamConverters.size() > 0) {
+            addAndSortParamConverters(newParamConverters, false);
+        }
+        //Liberty code change end
 
         mapInterceptorFilters(readerInterceptors, readInts, ReaderInterceptor.class, true);
         mapInterceptorFilters(writerInterceptors, writeInts, WriterInterceptor.class, true);
 
-        injectContextProxies(messageReaders, messageWriters, contextResolvers, paramConverters,
+        //Liberty code change start
+        injectContextProxies(messageReaders.get(), messageWriters.get(), contextResolvers.get(), paramConverters.get(),
+        //Liberty code change end
                              readerInterceptors.values(), writerInterceptors.values());
         checkParamConverterContexts();
     }
@@ -830,50 +872,125 @@ public abstract class ProviderFactory {
         }
     }
 
-    /*
-     * sorts the available providers according to the media types they declare
-     * support for. Sorting of media types follows the general rule: x/y < * x < *,
-     * i.e. a provider that explicitly lists a media types is sorted before a
-     * provider that lists *. Quality parameter values are also used such that
-     * x/y;q=1.0 < x/y;q=0.7.
-     */
-    private void sortReaders() {
+    //Liberty code change start
+    private void addAndSortReaders(List<ProviderInfo<MessageBodyReader<?>>> newReaders, boolean forceSort) {
+        Comparator<ProviderInfo<MessageBodyReader<?>>> comparator = null;
         if (!customComparatorAvailable(MessageBodyReader.class)) {
-            messageReaders.sort(new MessageBodyReaderComparator(readerMediaTypesMap));
-        } else {
-            doCustomSort(messageReaders);
+            comparator = new MessageBodyReaderComparator(readerMediaTypesMap);
         }
+
+        messageReaders.addAndSortProviders(newReaders, comparator, forceSort);
     }
 
-    private <T> void sortWriters() {
+    private void addAndSortWriters(List<ProviderInfo<MessageBodyWriter<?>>> newWriters, boolean forceSort) {
+        Comparator<ProviderInfo<MessageBodyWriter<?>>> comparator = null;
         if (!customComparatorAvailable(MessageBodyWriter.class)) {
-            messageWriters.sort(new MessageBodyWriterComparator(writerMediaTypesMap));
-        } else {
-            doCustomSort(messageWriters);
+            comparator = new MessageBodyWriterComparator(writerMediaTypesMap);
         }
-        if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
-            StringBuilder msg = new StringBuilder("sortWriters - sorted list:");
-            for (int i = 0; i < messageWriters.size(); i++) {
-                msg.append(" (" + i + ") " + messageWriters.get(i).getProvider());
-            }
-            Tr.debug(tc, msg.toString());
-        }
+
+        messageWriters.addAndSortProviders(newWriters, comparator, forceSort);
     }
 
-    private <T> void sortParamConverters() {
-        if (!customComparatorAvailable(ParamConverter.class)) {
-            paramConverters.sort(new ParamConverterProviderComparator());
-        } else {
-            doCustomSort(paramConverters);
+    protected class AtomicReferenceProviderList<T> implements Iterable<ProviderInfo<T>> {
+        private final AtomicReference<List<ProviderInfo<T>>> referent;
+
+        public AtomicReferenceProviderList() {
+            referent = new AtomicReference<>(Collections.emptyList());
         }
-        if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
-            StringBuilder msg = new StringBuilder("sortParamConverters - sorted list:");
-            for (int i = 0; i < paramConverters.size(); i++) {
-                msg.append(" (" + i + ") " + paramConverters.get(i).getProvider());
+
+        /*
+         * sorts the available providers according to the media types they declare
+         * support for. Sorting of media types follows the general rule: x/y < * x < *,
+         * i.e. a provider that explicitly lists a media types is sorted before a
+         * provider that lists *. Quality parameter values are also used such that
+         * x/y;q=1.0 < x/y;q=0.7.
+         */
+        public void addAndSortProviders(List<ProviderInfo<T>> providers,
+                                        Comparator<ProviderInfo<T>> comparator, boolean forceSort) {
+            List<ProviderInfo<T>> currentProviders = null;
+            List<ProviderInfo<T>> newProviders = null;
+            do {
+                currentProviders = referent.get();
+                if (providers == null) {
+                    if (currentProviders.size() <= 1) {
+                        return;
+                    }
+                    newProviders = new ArrayList<ProviderInfo<T>>(currentProviders);
+                } else {
+                    if (currentProviders.isEmpty()) {
+                        newProviders = providers;
+                    } else {
+                        newProviders = new ArrayList<ProviderInfo<T>>(currentProviders);
+                        for (ProviderInfo<T> provider : providers) {
+                            addProviderToList(newProviders, provider);
+                        }
+                    }
+                }
+
+                int newSize = newProviders.size();
+                if (!forceSort && newSize == currentProviders.size()) {
+                    // If we did not add any more providers because they all were already
+                    // in the current list, return to avoid sort and compareAndSet call.
+                    return;
+                }
+
+                if (newSize > 1) {
+                    if (comparator != null) {
+                        newProviders.sort(comparator);
+                    } else {
+                        doCustomSort(newProviders);
+                    }
+                }
+            } while (!referent.compareAndSet(currentProviders, newProviders));
+
+            if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
+                StringBuilder msg = new StringBuilder("sortProviders - sorted list:");
+                for (int i = 0; i < newProviders.size(); i++) {
+                    msg.append(" (" + i + ") " + newProviders.get(i).getProvider());
+                }
+                Tr.debug(tc, msg.toString());
             }
-            Tr.debug(tc, msg.toString());
+        }
+
+        public void addProviders(List<ProviderInfo<T>> providers) {
+            List<ProviderInfo<T>> currentProviders = null;
+            List<ProviderInfo<T>> newProviders = null;
+            do {
+                currentProviders = referent.get();
+                if (currentProviders.isEmpty()) {
+                    newProviders = providers;
+                } else {
+                    newProviders = new ArrayList<ProviderInfo<T>>(currentProviders);
+                    for (ProviderInfo<T> provider : providers) {
+                        addProviderToList(newProviders, provider);
+                    }
+                }
+            } while (!referent.compareAndSet(currentProviders, newProviders));
+        }
+
+        @Override
+        public Iterator<ProviderInfo<T>> iterator() {
+            return referent.get().iterator();
+        }
+
+        public List<ProviderInfo<T>> get() {
+            return referent.get();
+        }
+
+        public void clear() {
+            referent.set(Collections.emptyList());
         }
     }
+    
+    private void addAndSortParamConverters(List<ProviderInfo<ParamConverterProvider>> newParamConverters, boolean forceSort) {
+        Comparator<ProviderInfo<ParamConverterProvider>> comparator = null;
+        if (!customComparatorAvailable(ParamConverter.class)) {
+            comparator = new ParamConverterProviderComparator();
+        }
+
+        paramConverters.addAndSortProviders(newParamConverters, comparator, forceSort);
+    }
+    //Liberty code change end
 
     private boolean customComparatorAvailable(Class<?> providerClass) {
         if (providerComparator != null) {
@@ -911,24 +1028,22 @@ public abstract class ProviderFactory {
         theProviders.sort(theComparator);
     }
 
-    private void sortContextResolvers() {
-        contextResolvers.sort(new ContextResolverComparator());
-    }
-
-    private final Map<MessageBodyReader<?>, List<MediaType>> readerMediaTypesMap = new HashMap<>();
+    private final Map<MessageBodyReader<?>, List<MediaType>> readerMediaTypesMap = new IdentityHashMap<>();
 
     /**
      * This method attempts to optimize performance by checking a cache of known MessageBodyReaders's media types,
      * rather than calculating the media types for every provider on every request. If there is a cache miss, we
      * will look up the media types by calling JAXRSUtils.getProviderConsumeTypes(mbr).
      */
-    private static List<MediaType> getProviderConsumeTypes(MessageBodyReader<?> mbr, Map<MessageBodyReader<?>, List<MediaType>> cache) {
+    private static List<MediaType> getSortedProviderConsumeTypes(MessageBodyReader<?> mbr, Map<MessageBodyReader<?>, List<MediaType>> cache) {
         List<MediaType> mediaTypes = cache.get(mbr);
         if (mediaTypes == null) {
             mediaTypes = JAXRSUtils.getProviderConsumeTypes(mbr);
+            // sort here before putting in the cache to avoid ConcurrentModificationException
+            mediaTypes = JAXRSUtils.sortMediaTypes(mediaTypes, null);
             cache.put(mbr, mediaTypes);
             if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
-                Tr.debug(tc, "getProviderConsumeTypes - cache miss - caching " + mbr + " = " + mediaTypes);
+                Tr.debug(tc, "getSortedProviderConsumeTypes - cache miss - caching " + mbr + " = " + mediaTypes);
             }
         }
         return mediaTypes;
@@ -939,9 +1054,7 @@ public abstract class ProviderFactory {
         MessageBodyReader<?> ep = pi.getProvider();
         List<MediaType> supportedMediaTypes = JAXRSUtils.getProviderConsumeTypes(ep);
 
-        //Liberty code change begin
         return JAXRSUtils.doMimeTypesIntersect(Collections.singletonList(mediaType), supportedMediaTypes);
-        //Liberty code change end
     }
 
     private boolean isReadable(ProviderInfo<MessageBodyReader<?>> pi,
@@ -958,20 +1071,22 @@ public abstract class ProviderFactory {
         return ep.isReadable(type, genericType, annotations, mediaType);
     }
 
-    private final Map<MessageBodyWriter<?>, List<MediaType>> writerMediaTypesMap = new HashMap<>();
+    private final Map<MessageBodyWriter<?>, List<MediaType>> writerMediaTypesMap = new IdentityHashMap<>();
 
     /**
      * This method attempts to optimize performance by checking a cache of known MessageBodyWriter's media types,
      * rather than calculating the media types for every provider on every request. If there is a cache miss, we
      * will look up the media types by calling JAXRSUtils.getProviderProduceTypes(mbw).
      */
-    private static List<MediaType> getProviderProduceTypes(MessageBodyWriter<?> mbw, Map<MessageBodyWriter<?>, List<MediaType>> cache) {
+    private static List<MediaType> getSortedProviderProduceTypes(MessageBodyWriter<?> mbw, Map<MessageBodyWriter<?>, List<MediaType>> cache) {
         List<MediaType> mediaTypes = cache.get(mbw);
         if (mediaTypes == null) {
             mediaTypes = JAXRSUtils.getProviderProduceTypes(mbw);
+            // sort here before putting in the cache to avoid ConcurrentModificationException
+            mediaTypes = JAXRSUtils.sortMediaTypes(mediaTypes, JAXRSUtils.MEDIA_TYPE_QS_PARAM);
             cache.put(mbw, mediaTypes);
             if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
-                Tr.debug(tc, "getProviderProduceTypes - cache miss - caching " + mbw + " = " + mediaTypes);
+                Tr.debug(tc, "getSortedProviderProduceTypes - cache miss - caching " + mbw + " = " + mediaTypes);
             }
         }
         return mediaTypes;
@@ -1008,15 +1123,21 @@ public abstract class ProviderFactory {
     }
 
     List<ProviderInfo<MessageBodyReader<?>>> getMessageReaders() {
-        return Collections.unmodifiableList(messageReaders);
+        //Liberty code change start
+        return Collections.unmodifiableList(messageReaders.get());
+        //Liberty code change end
     }
 
     List<ProviderInfo<MessageBodyWriter<?>>> getMessageWriters() {
-        return Collections.unmodifiableList(messageWriters);
+        //Liberty code change start
+        return Collections.unmodifiableList(messageWriters.get());
+        //Liberty code change end
     }
 
     List<ProviderInfo<ContextResolver<?>>> getContextResolvers() {
-        return Collections.unmodifiableList(contextResolvers);
+        //Liberty code change start
+        return Collections.unmodifiableList(contextResolvers.get());
+        //Liberty code change end
     }
 
     public void registerUserProvider(Object provider) {
@@ -1047,10 +1168,10 @@ public abstract class ProviderFactory {
             MessageBodyReader<?> e1 = p1.getOldProvider();
             MessageBodyReader<?> e2 = p2.getOldProvider();
 
-            List<MediaType> types1 = getProviderConsumeTypes(e1, cache);
-            types1 = JAXRSUtils.sortMediaTypes(types1, null);
-            List<MediaType> types2 = getProviderConsumeTypes(e2, cache);
-            types2 = JAXRSUtils.sortMediaTypes(types2, null);
+            //Liberty code change start
+            List<MediaType> types1 = getSortedProviderConsumeTypes(e1, cache);
+            List<MediaType> types2 = getSortedProviderConsumeTypes(e2, cache);
+            //Liberty code change end
 
             int result = JAXRSUtils.compareSortedMediaTypes(types1, types2, null);
             if (result != 0) {
@@ -1086,10 +1207,10 @@ public abstract class ProviderFactory {
             if (result != 0) {
                 return result;
             }
-            List<MediaType> types1 =
-                JAXRSUtils.sortMediaTypes(JAXRSUtils.getProviderProduceTypes(e1), JAXRSUtils.MEDIA_TYPE_QS_PARAM);
-            List<MediaType> types2 =
-                JAXRSUtils.sortMediaTypes(JAXRSUtils.getProviderProduceTypes(e2), JAXRSUtils.MEDIA_TYPE_QS_PARAM);
+            //Liberty code change start
+            List<MediaType> types1 = getSortedProviderProduceTypes(e1, cache);
+            List<MediaType> types2 = getSortedProviderProduceTypes(e2, cache);
+            //Liberty code change end
 
             result = JAXRSUtils.compareSortedMediaTypes(types1, types2, JAXRSUtils.MEDIA_TYPE_QS_PARAM);
             if (result != 0) {
@@ -1257,8 +1378,10 @@ public abstract class ProviderFactory {
 
     Set<Object> getReadersWriters() {
         Set<Object> set = new HashSet<>();
-        set.addAll(messageReaders);
-        set.addAll(messageWriters);
+        //Liberty code change start
+        set.addAll(messageReaders.get());
+        set.addAll(messageWriters.get());
+        //Liberty code change end
         return set;
     }
 
@@ -1419,22 +1542,24 @@ public abstract class ProviderFactory {
 
     }
 
-    protected static class BindingPriorityComparator extends AbstractPriorityComparator
-        implements Comparator<ProviderInfo<?>> {
-        private final Class<?> providerCls;
+    //Liberty code change start
+    protected static class BindingPriorityComparator<T> extends AbstractPriorityComparator
+        implements Comparator<ProviderInfo<T>> {
+        private final Class<T> providerCls;
 
-        public BindingPriorityComparator(Class<?> providerCls, boolean ascending) {
+        public BindingPriorityComparator(Class<T> providerCls, boolean ascending) {
             super(ascending);
             this.providerCls = providerCls;
         }
 
         @Override
-        public int compare(ProviderInfo<?> p1, ProviderInfo<?> p2) {
+        public int compare(ProviderInfo<T> p1, ProviderInfo<T> p2) {
             return compare(getFilterPriority(p1, providerCls),
                            getFilterPriority(p2, providerCls));
         }
 
     }
+    //Liberty code change end
 
     static class ContextResolverProxy<T> implements ContextResolver<T> {
         private final List<ContextResolver<T>> candidates;
@@ -1704,9 +1829,11 @@ public abstract class ProviderFactory {
 
     public void setProviderComparator(Comparator<?> providerComparator) {
         this.providerComparator = providerComparator;
-        sortReaders();
-        sortWriters();
-        sortParamConverters();
+        //Liberty code change start
+        addAndSortReaders(null, true);
+        addAndSortWriters(null, true);
+        addAndSortParamConverters(null, true);
+        //Liberty code change end
     }
 
     //Liberty code change start

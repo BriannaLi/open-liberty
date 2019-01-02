@@ -30,6 +30,7 @@ import javax.servlet.http.HttpUtils;
 
 import com.ibm.ejs.ras.TraceNLS;
 import com.ibm.websphere.servlet.error.ServletErrorReport;
+import com.ibm.ws.webcontainer.osgi.WebContainer;
 import com.ibm.ws.webcontainer.session.IHttpSessionContext;
 import com.ibm.ws.webcontainer.srt.SRTRequestContext;
 import com.ibm.ws.webcontainer.srt.SRTServletRequest;
@@ -912,7 +913,7 @@ public abstract class WebAppDispatcherContext implements Cloneable, IWebAppDispa
         ((SRTServletRequest)_request).resetPathElements();
 
         if (com.ibm.ejs.ras.TraceComponent.isAnyTracingEnabled() && logger.isLoggable (Level.FINE)) {    //PI67942
-            logger.logp(Level.FINE, CLASS_NAME,"setPathElements", "ervletPath = " + servletPath +", pathInfo = " + pathInfo +" : this = " + this);
+            logger.logp(Level.FINE, CLASS_NAME,"setPathElements", "servletPath = " + servletPath +", pathInfo = " + pathInfo +" : this = " + this);
         }
         //PK39337 - start
         if (removeServletPathSlash) {
@@ -959,7 +960,7 @@ public abstract class WebAppDispatcherContext implements Cloneable, IWebAppDispa
             }       		
         }
         //PK39337 - end
-        else if (servletPath.length()==1 && servletPath.charAt(0)=='/'){
+        else if (servletPath.length()==1 && servletPath.charAt(0)=='/' && !Boolean.valueOf(WCCustomProperties.SERVLET_PATH_FOR_DEFAULT_MAPPING).booleanValue()) {
             this._servletPath = "";
             if (pathInfo ==null)
                 this._pathInfo = "/";
@@ -975,6 +976,10 @@ public abstract class WebAppDispatcherContext implements Cloneable, IWebAppDispa
 
         if (_pathInfo != null)
             relativeUri += _pathInfo;
+        
+        if (com.ibm.ejs.ras.TraceComponent.isAnyTracingEnabled() && logger.isLoggable (Level.FINE)) { 
+            logger.logp(Level.FINE, CLASS_NAME,"setPathElements", "returns with servletPath = " + _servletPath +", pathInfo = " + _pathInfo +" : this = " + this);
+        }
         
     }
 

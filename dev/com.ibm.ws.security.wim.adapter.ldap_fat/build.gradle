@@ -72,6 +72,7 @@ autoFVT.doLast {
    */
   def servers = [
     'com.ibm.ws.security.registry.ldap.fat.ad',
+    'com.ibm.ws.security.registry.ldap.fat.ad.wild',
     'com.ibm.ws.security.registry.ldap.fat.ad.noId',
     'com.ibm.ws.security.registry.ldap.fat.ad.ssl',
     'com.ibm.ws.security.registry.ldap.fat.custom',
@@ -117,7 +118,9 @@ autoFVT.doLast {
     'com.ibm.ws.security.wim.adapter.ldap.fat.tds.sslref.badssl',
     'com.ibm.ws.security.wim.adapter.ldap.fat.tds.failover',
     'com.ibm.ws.security.wim.adapter.ldap.fat.tworealms',
-    'com.ibm.ws.security.wim.adapter.ldap.fat.ids.allIbmGroups'
+    'com.ibm.ws.security.wim.adapter.ldap.fat.ids.allIbmGroups',
+    'com.ibm.ws.security.registry.ldap.fat.attr.timeout',
+    'com.ibm.ws.security.wim.adapter.ldap.fat.readtimeout'
   ]
   servers.each { server ->
     copy { 
@@ -130,7 +133,8 @@ autoFVT.doLast {
    * Copy the WIM API WAR into test servers.
    */
   servers = [
-    'vmm.apis.tds.ldap'
+    'vmm.apis.tds.ldap',
+    'vmm.apis.empty'
   ]
   servers.each { server ->
     copy { 
@@ -208,4 +212,6 @@ task certificateMapper_JAR(type: Jar, dependsOn: classes) {
 assemble { 
   dependsOn \
   certificateMapper_JAR
+  
+  dependsOn ':com.ibm.ws.security.registry_test.servlet:assemble'
 }

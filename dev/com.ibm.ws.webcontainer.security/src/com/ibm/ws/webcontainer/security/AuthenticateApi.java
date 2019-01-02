@@ -29,10 +29,15 @@ import com.ibm.websphere.ras.Tr;
 import com.ibm.websphere.ras.TraceComponent;
 import com.ibm.websphere.ras.annotation.Sensitive;
 import com.ibm.websphere.security.audit.AuditEvent;
+import com.ibm.websphere.security.web.PasswordExpiredException;
+import com.ibm.websphere.security.web.UserRevokedException;
+import com.ibm.ws.kernel.security.thread.ThreadIdentityException;
+import com.ibm.ws.kernel.security.thread.ThreadIdentityManager;
 import com.ibm.ws.security.SecurityService;
 import com.ibm.ws.security.audit.Audit;
 import com.ibm.ws.security.authentication.AuthenticationException;
 import com.ibm.ws.security.authentication.AuthenticationService;
+import com.ibm.ws.security.authentication.UnauthenticatedSubjectService;
 import com.ibm.ws.security.authentication.cache.AuthCacheService;
 import com.ibm.ws.security.authentication.utility.SubjectHelper;
 import com.ibm.ws.security.collaborator.CollaboratorUtils;
@@ -66,19 +71,23 @@ public class AuthenticateApi {
     private AuthenticationService authService = null;
     private ConcurrentServiceReferenceMap<String, WebAuthenticator> webAuthenticatorRefs = null;
     private ConcurrentServiceReferenceMap<String, UnprotectedResourceService> unprotectedResourceServiceRef = null;
+    private UnauthenticatedSubjectService unauthenticatedSubjectService;
     protected static final WebReply DENY_AUTHN_FAILED = new DenyReply("AuthenticationFailed");
     private Subject logoutSubject = null;
+    private final String SECURITY_CONTEXT = "SECURITY_CONTEXT";
 
     public AuthenticateApi(SSOCookieHelper ssoCookieHelper,
                            AtomicServiceReference<SecurityService> securityServiceRef,
                            CollaboratorUtils collabUtils,
                            ConcurrentServiceReferenceMap<String, WebAuthenticator> webAuthenticatorRef,
-                           ConcurrentServiceReferenceMap<String, UnprotectedResourceService> unprotectedResourceServiceRef) {
+                           ConcurrentServiceReferenceMap<String, UnprotectedResourceService> unprotectedResourceServiceRef,
+                           UnauthenticatedSubjectService unauthenticatedSubjectService) {
         this.ssoCookieHelper = ssoCookieHelper;
         this.securityServiceRef = securityServiceRef;
         this.collabUtils = collabUtils;
         this.webAuthenticatorRefs = webAuthenticatorRef;
         this.unprotectedResourceServiceRef = unprotectedResourceServiceRef;
+        this.unauthenticatedSubjectService = unauthenticatedSubjectService;
 
         // securityService may or may not be available at this point. so if it is available, do the the initialization work,
         // otherwise defer getting authService and authCacheService when it is ready.
@@ -140,7 +149,14 @@ public class AuthenticateApi {
 
             Audit.audit(Audit.EventID.SECURITY_API_AUTHN_01, req, authResult, Integer.valueOf(reply.getStatusCode()));
 
-            throw new ServletException(authResult.getReason());
+            if (authResult.passwordExpired == true) {
+                throw new PasswordExpiredException(authResult.getReason());
+            } else if (authResult.userRevoked == true) {
+                throw new UserRevokedException(authResult.getReason());
+            } else {
+                throw new ServletException(authResult.getReason());
+            }
+
         } else {
 
             Audit.audit(Audit.EventID.SECURITY_API_AUTHN_01, req, authResult, Integer.valueOf(HttpServletResponse.SC_OK));
@@ -179,6 +195,16 @@ public class AuthenticateApi {
         invalidateSession(req);
         ssoCookieHelper.removeSSOCookieFromResponse(res);
         ssoCookieHelper.createLogoutCookies(req, res);
+
+        try {
+            if (unauthenticatedSubjectService != null) {
+                ThreadIdentityManager.setAppThreadIdentity(unauthenticatedSubjectService.getUnauthenticatedSubject());
+            }
+
+        } catch (ThreadIdentityException e) {
+            //FFDC will be generated
+        }
+
         //If authenticated with form login, we need to clear the RefrrerURLCookie
         ReferrerURLCookieHandler referrerURLHandler = config.createReferrerURLCookieHandler();
         referrerURLHandler.clearReferrerURLCookie(req, res, ReferrerURLCookieHandler.REFERRER_URL_COOKIENAME);
@@ -482,6 +508,17 @@ public class AuthenticateApi {
         if (addSSOCookie) {
             ssoCookieHelper.addSSOCookiesToResponse(subject, req, resp);
         }
+        try {
+            Object loginToken = ThreadIdentityManager.setAppThreadIdentity(subject);
+            WebSecurityContext webSecurityContext = (WebSecurityContext) SRTServletRequestUtils.getPrivateAttribute(req, SECURITY_CONTEXT);
+
+            if (webSecurityContext != null && webSecurityContext.getSyncToOSThreadToken() == null) {
+                webSecurityContext.setSyncToOSThreadToken(loginToken);
+            }
+        } catch (ThreadIdentityException e) {
+            //FFDC will be generated
+        }
+
     }
 
     /**
@@ -601,5 +638,4 @@ public class AuthenticateApi {
     public Subject returnSubjectOnLogout() {
         return logoutSubject;
     }
-
 }

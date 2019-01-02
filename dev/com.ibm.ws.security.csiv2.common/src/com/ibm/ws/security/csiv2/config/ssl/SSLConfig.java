@@ -57,14 +57,27 @@ public class SSLConfig {
         this.jsseHelper = jsseHelper;
     }
 
+    @FFDCIgnore(PrivilegedActionException.class)
+    private SSLContext getSslContext(final String sslConfigName) throws SSLConfigurationNotAvailableException, SSLException {
+        try {
+            return AccessController.doPrivileged(new PrivilegedExceptionAction<SSLContext>() {
+                @Override
+                public SSLContext run() throws SSLConfigurationNotAvailableException, SSLException {
+                    return jsseHelper.getSSLContext(sslConfigName, null, null, false);
+                }
+            });
+        } catch (PrivilegedActionException pae) {
+            assert SSLException.class.isAssignableFrom(SSLConfigurationNotAvailableException.class);
+            throw (SSLException) pae.getCause();
+        }
+    }
+
     public SSLServerSocketFactory createSSLServerFactory(String sslConfigName) throws SSLConfigurationNotAvailableException, SSLException {
-        SSLContext sslContext = jsseHelper.getSSLContext(sslConfigName, null, null, false);
-        return sslContext.getServerSocketFactory();
+        return getSslContext(sslConfigName).getServerSocketFactory();
     }
 
     public SSLSocketFactory createSSLFactory(String sslConfigName) throws SSLConfigurationNotAvailableException, SSLException {
-        SSLContext sslContext = jsseHelper.getSSLContext(sslConfigName, null, null, false);
-        return sslContext.getSocketFactory();
+        return getSslContext(sslConfigName).getSocketFactory();
     }
 
     public String[] getCipherSuites(String sslAliasName, String[] candidateCipherSuites) throws SSLException {
@@ -82,6 +95,17 @@ public class SSLConfig {
             String securityLevelString = props.getProperty(Constants.SSLPROP_SECURITY_LEVEL);
             return Constants.adjustSupportedCiphersToSecurityLevel(candidateCipherSuites, securityLevelString);
         }
+    }
+
+    public String getSSLProtocol(String sslAliasName) throws SSLException {
+        Properties props = jsseHelper.getProperties(sslAliasName);
+        String protocol = props.getProperty(Constants.SSLPROP_PROTOCOL);
+
+        // only set the protocol on the socket if it is set to a specific protocol
+        if (protocol.equals(Constants.PROTOCOL_SSL) || protocol.equals(Constants.PROTOCOL_TLS))
+            protocol = null;
+
+        return protocol;
     }
 
     /**
@@ -115,9 +139,9 @@ public class SSLConfig {
         }
 
         try {
-            Properties props = (Properties) AccessController.doPrivileged(new PrivilegedExceptionAction<Object>() {
+            Properties props = AccessController.doPrivileged(new PrivilegedExceptionAction<Properties>() {
                 @Override
-                public Object run() throws Exception {
+                public Properties run() throws SSLException {
                     return jsseHelper.getProperties(sslAliasName);
                 }
             });
@@ -271,9 +295,9 @@ public class SSLConfig {
 
         Properties sslProps = null;
         try {
-            sslProps = (Properties) AccessController.doPrivileged(new PrivilegedExceptionAction<Object>() {
+            sslProps = AccessController.doPrivileged(new PrivilegedExceptionAction<Properties>() {
                 @Override
-                public Object run() throws Exception {
+                public Properties run() throws SSLException {
                     return jsseHelper.getProperties(null, connectionInfo, null);
                 }
             });

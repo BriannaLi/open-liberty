@@ -32,7 +32,7 @@ import componenttest.topology.impl.LibertyServer;
  * We're extending CDITestBase, which has common test code.
  */
 @Mode(TestMode.FULL)
-@MinimumJavaLevel(javaLevel = 1.8)
+@MinimumJavaLevel(javaLevel = 8)
 @RunWith(FATRunner.class)
 public class CDIFacesInWebXMLTests extends CDITestBase {
 
@@ -46,7 +46,8 @@ public class CDIFacesInWebXMLTests extends CDITestBase {
                                       "com.ibm.ws.jsf23.fat.cdi.common.beans.factory",
                                       "com.ibm.ws.jsf23.fat.cdi.common.beans.injected",
                                       "com.ibm.ws.jsf23.fat.cdi.common.managed",
-                                      "com.ibm.ws.jsf23.fat.cdi.common.managed.factories");
+                                      "com.ibm.ws.jsf23.fat.cdi.common.managed.factories",
+                                      "com.ibm.ws.jsf23.fat.cdi.common.managed.factories.client.window");
 
         // Start the server and use the class name so we can find logs easily.
         jsfCDIFacesInWebXMLServer.startServer(CDIFacesInWebXMLTests.class.getSimpleName() + ".log");

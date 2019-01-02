@@ -432,6 +432,7 @@ public class CommonFatLoggingUtilsTest extends CommonTestClass {
                     one(webRequest).getAdditionalHeaders();
                     will(returnValue(headers));
                     one(webRequest).getRequestParameters();
+                    one(webRequest).getRequestBody();
                 }
             });
 
@@ -475,6 +476,7 @@ public class CommonFatLoggingUtilsTest extends CommonTestClass {
                     one(webRequest).getAdditionalHeaders();
                     one(webRequest).getRequestParameters();
                     will(returnValue(requestParams));
+                    one(webRequest).getRequestBody();
                 }
             });
 
@@ -1465,7 +1467,7 @@ public class CommonFatLoggingUtilsTest extends CommonTestClass {
         try {
             Expectations expectations = new Expectations();
             String[] actions = new String[] { ACTION1 };
-            Expectation expectation = Expectation.createResponseStatusExpectation(ACTION1, HttpServletResponse.SC_OK);
+            Expectation expectation = new ResponseStatusExpectation(ACTION1, HttpServletResponse.SC_OK);
             expectations.addExpectation(expectation);
 
             utils.printExpectations(expectations, actions);
@@ -1489,7 +1491,7 @@ public class CommonFatLoggingUtilsTest extends CommonTestClass {
         try {
             Expectations expectations = new Expectations();
             String[] actions = new String[] { ACTION1 };
-            Expectation expectation = Expectation.createResponseStatusExpectation(ACTION2, HttpServletResponse.SC_OK);
+            Expectation expectation = new ResponseStatusExpectation(ACTION2, HttpServletResponse.SC_OK);
             expectations.addExpectation(expectation);
 
             utils.printExpectations(expectations, actions);
@@ -1596,7 +1598,7 @@ public class CommonFatLoggingUtilsTest extends CommonTestClass {
             String[] actions = new String[] { ACTION1 };
             Expectation expectation1 = new ResponseFullExpectation(ACTION1, "check type", "search for this value", "Failed to find value!");
             expectations.addExpectation(expectation1);
-            Expectation expectation2 = Expectation.createResponseStatusExpectation(ACTION1, HttpServletResponse.SC_UNAUTHORIZED);
+            Expectation expectation2 = new ResponseStatusExpectation(ACTION1, HttpServletResponse.SC_UNAUTHORIZED);
             expectations.addExpectation(expectation2);
             // Add an expectation for some other action/step
             Expectation expectationDifferentAction = Expectation.createResponseExpectation(ACTION2, "look for me", "We failed to find the expected value.");
@@ -1630,7 +1632,7 @@ public class CommonFatLoggingUtilsTest extends CommonTestClass {
             String[] actions = new String[] { ACTION1 };
             Expectation expectation1 = Expectation.createResponseExpectation(ACTION2, "look for me", "We failed to find the expected value.");
             expectations.addExpectation(expectation1);
-            Expectation expectation2 = Expectation.createResponseStatusExpectation(ACTION2, HttpServletResponse.SC_UNAUTHORIZED);
+            Expectation expectation2 = new ResponseStatusExpectation(ACTION2, HttpServletResponse.SC_UNAUTHORIZED);
             expectations.addExpectation(expectation2);
 
             utils.printExpectations(expectations, actions);
@@ -1660,7 +1662,7 @@ public class CommonFatLoggingUtilsTest extends CommonTestClass {
             String[] actions = new String[] { ACTION1, ACTION2, ACTION3 };
             Expectation expectation1 = new ResponseTitleExpectation(ACTION1, "check type", "search for this value", "Failed to find value!");
             expectations.addExpectation(expectation1);
-            Expectation expectation2 = Expectation.createResponseStatusExpectation(ACTION2, HttpServletResponse.SC_UNAUTHORIZED);
+            Expectation expectation2 = new ResponseStatusExpectation(ACTION2, HttpServletResponse.SC_UNAUTHORIZED);
             expectations.addExpectation(expectation2);
             Expectation expectation3 = Expectation.createResponseExpectation(ACTION2, "look for me", "We failed to find the expected value.");
             expectations.addExpectation(expectation3);
@@ -1955,6 +1957,7 @@ public class CommonFatLoggingUtilsTest extends CommonTestClass {
                 will(returnValue(new URL(SIMPLE_URL)));
                 one(webRequest).getAdditionalHeaders();
                 one(webRequest).getRequestParameters();
+                one(webRequest).getRequestBody();
             }
         });
     }

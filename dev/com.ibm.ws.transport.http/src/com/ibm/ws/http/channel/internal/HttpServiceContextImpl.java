@@ -1923,7 +1923,7 @@ public abstract class HttpServiceContextImpl implements HttpServiceContext, FFDC
                 ArrayList<Frame> bodyFrames = link.prepareBody(wsbb, length, addEndOfStream);
 
                 if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
-                    Tr.debug(tc, "formatBody: On an HTTP/2.0 connection, adding DATA frames to be written : " + bodyFrames);
+                    Tr.debug(tc, "formatBody: On an HTTP/2.0 connection, adding DATA frames to be written");
                 }
 
                 framesToWrite.addAll(bodyFrames);
@@ -2007,7 +2007,7 @@ public abstract class HttpServiceContextImpl implements HttpServiceContext, FFDC
         }
 
         // get marshalled header buffers
-        WsByteBuffer[] headerBuffers;
+        WsByteBuffer[] headerBuffers = null;
         try {
             // Contingent on the type of message, call the appropriate
             // marshalling method
@@ -2060,6 +2060,8 @@ public abstract class HttpServiceContextImpl implements HttpServiceContext, FFDC
                 }
 
                 framesToWrite.addAll(headerFrames);
+
+                // the code that allocated headerBuffers, should ensure they get released, we will not do that here
             }
 
         } catch (Throwable t) {
@@ -2096,7 +2098,11 @@ public abstract class HttpServiceContextImpl implements HttpServiceContext, FFDC
         }
         // add them to list
         if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
-            Tr.debug(tc, "formatHeaders: Adding " + headerBuffers.length + " buffers to be written");
+            if (headerBuffers != null) {
+                Tr.debug(tc, "formatHeaders: Adding " + headerBuffers.length + " buffers to be written");
+            } else {
+                Tr.debug(tc, "formatHeaders: headerBuffers is null");
+            }
         }
 
         this.writingHeaders = true;
@@ -2285,8 +2291,8 @@ public abstract class HttpServiceContextImpl implements HttpServiceContext, FFDC
 
             if ((link instanceof H2HttpInboundLinkWrap) &&
                 (((H2HttpInboundLinkWrap) link).muxLink != null) &&
-                (((H2HttpInboundLinkWrap) link).muxLink.getConnectionSettings() != null) &&
-                (((H2HttpInboundLinkWrap) link).muxLink.getConnectionSettings().getEnablePush() == 1)) {
+                (((H2HttpInboundLinkWrap) link).muxLink.getRemoteConnectionSettings() != null) &&
+                (((H2HttpInboundLinkWrap) link).muxLink.getRemoteConnectionSettings().getEnablePush() == 1)) {
 
                 // Loop through the headers in this message, check for
                 // link header
@@ -2372,14 +2378,31 @@ public abstract class HttpServiceContextImpl implements HttpServiceContext, FFDC
         }
         if (isOutgoingBodyValid()) {
             HttpInboundServiceContextImpl hisc = null;
-            if (wsbb == null && this instanceof HttpInboundServiceContextImpl) {
-                hisc = (HttpInboundServiceContextImpl) this;
+            boolean needH2EOS = true;
+            HttpInboundLink link = ((HttpInboundServiceContextImpl) this).getLink();
+
+            if (this instanceof HttpInboundServiceContextImpl) {
+                if (link instanceof H2HttpInboundLinkWrap) {
+                    if (framesToWrite != null && framesToWrite.size() > 0) {
+                        Frame lastFrame = framesToWrite.get(framesToWrite.size()-1);
+                        if (lastFrame != null && lastFrame.flagEndStreamSet()) {
+                            needH2EOS = false;
+                        }
+                    }
+                } else {
+                    needH2EOS = false;
+                }
+                if (wsbb == null || needH2EOS) {
+                    hisc = (HttpInboundServiceContextImpl) this;
+                }
             }
+
             if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled() && hisc != null && hisc.getLink() != null) {
                 Tr.debug(tc, "sendFullOutgoing : " + hisc + ", " + hisc.getLink().toString());
             }
-            if (hisc != null && hisc.getLink() instanceof H2HttpInboundLinkWrap) {
-                H2HttpInboundLinkWrap h2Link = (H2HttpInboundLinkWrap) hisc.getLink();
+            
+            if (hisc != null && link instanceof H2HttpInboundLinkWrap) {
+                H2HttpInboundLinkWrap h2Link = (H2HttpInboundLinkWrap) link;
 
                 if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
                     Tr.debug(tc, "sendFullOutgoing : preparing the final write");
@@ -2392,7 +2415,10 @@ public abstract class HttpServiceContextImpl implements HttpServiceContext, FFDC
                     if (trailers != null) {
                         framesToWrite.addAll(h2Link.prepareHeaders(WsByteBufferUtils.asByteArray(trailers), true));
                     }
-                } else {
+                } else if (needH2EOS) {
+                    if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
+                        Tr.debug(tc, "sendFullOutgoing : adding HTTP/2 EOS flag");
+                    }
                     framesToWrite.addAll(h2Link.prepareBody(null, 0, this.isFinalWrite));
                 }
                 if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
@@ -2693,9 +2719,14 @@ public abstract class HttpServiceContextImpl implements HttpServiceContext, FFDC
             if (context.getLink() instanceof H2HttpInboundLinkWrap) {
                 H2HttpInboundLinkWrap link = (H2HttpInboundLinkWrap) context.getLink();
 
-                link.writeFramesSync(framesToWrite);
-
-                framesToWrite.clear();
+                try {
+                    link.writeFramesSync(framesToWrite);
+                } catch (IOException ioe) {
+                    //throw back IOException so http channel can deal correctly with the app/servlet facing output stream
+                    throw ioe;
+                } finally {
+                    framesToWrite.clear();
+                }
             }
 
         } else {
@@ -5086,19 +5117,42 @@ public abstract class HttpServiceContextImpl implements HttpServiceContext, FFDC
         ByteArrayOutputStream ppHb = new ByteArrayOutputStream();
         try {
             // Add the four required pseudo headers to the push_promise frame header block fragment
+            // :method
             ppHb.write(H2Headers.encodeHeader(h2WriteTable, HpackConstants.METHOD, "GET", LiteralIndexType.NOINDEXING));
-            // Encode authority
-            String auth = ((H2HttpInboundLinkWrap) link).muxLink.getAuthority();
-            if (auth != null) {
-                ppHb.write(H2Headers.encodeHeader(h2WriteTable, HpackConstants.AUTHORITY, auth, LiteralIndexType.NOINDEXING));
-            }
-            if (this.isSecure()) {
-                ppHb.write(H2Headers.encodeHeader(h2WriteTable, HpackConstants.SCHEME, "https", LiteralIndexType.NOINDEXING));
-            } else {
-                ppHb.write(H2Headers.encodeHeader(h2WriteTable, HpackConstants.SCHEME, "http", LiteralIndexType.NOINDEXING));
-            }
 
+            // :scheme
+            String scheme = new String("https");
+            if (!this.isSecure()) {
+                scheme = new String("http");
+            }
+            ppHb.write(H2Headers.encodeHeader(h2WriteTable, HpackConstants.SCHEME, scheme, LiteralIndexType.NOINDEXING));
+
+            // :path
             ppHb.write(H2Headers.encodeHeader(h2WriteTable, HpackConstants.PATH, uri, LiteralIndexType.NOINDEXING));
+
+            // :authority
+            // If the :authority header was sent in the request, get the information from there
+            // If it was not, use getLocalAddr and and getLocalPort to create it
+            // If it's still null, we have to bail, since it's a required header in a push_promise frame
+            String auth = ((H2HttpInboundLinkWrap) link).muxLink.getAuthority();
+            if (null == auth) {
+                auth = getLocalAddr().getHostName();
+                if (null != auth) {
+                    if (0 <= getLocalPort()) {
+                        auth = auth + ":" + Integer.toString(getLocalPort());
+                    }
+                } else {
+                    if (TraceComponent.isAnyTracingEnabled() && tc.isEntryEnabled()) {
+                        Tr.exit(tc, "handleH2LinkPreload(): Cannot find hostname for required :authority pseudo header");
+                    }
+                    return;
+                }
+            }
+            ppHb.write(H2Headers.encodeHeader(h2WriteTable, HpackConstants.AUTHORITY, auth, LiteralIndexType.NOINDEXING));
+
+            if (TraceComponent.isAnyTracingEnabled() && tc.isEntryEnabled()) {
+                Tr.debug(tc, "handleH2LinkPreload(): Method is GET, authority is " + auth + ", scheme is " + scheme);
+            }
 
         }
         // Either IOException from write, or CompressionException from encodeHeader

@@ -26,6 +26,7 @@ import org.junit.Test;
 import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 
+import com.gargoylesoftware.htmlunit.FailingHttpStatusCodeException;
 import com.gargoylesoftware.htmlunit.HttpMethod;
 import com.gargoylesoftware.htmlunit.WebClient;
 import com.gargoylesoftware.htmlunit.WebRequest;
@@ -38,6 +39,7 @@ import com.ibm.websphere.simplicity.ShrinkHelper;
 import com.ibm.websphere.simplicity.log.Log;
 import com.ibm.ws.jsf23.fat.JSFUtils;
 
+import componenttest.annotation.AllowedFFDC;
 import componenttest.annotation.Server;
 import componenttest.custom.junit.runner.FATRunner;
 import componenttest.custom.junit.runner.Mode;
@@ -584,6 +586,7 @@ public class JSF23GeneralTests {
      * @throws Exception
      */
     @Test
+    @AllowedFFDC("java.security.PrivilegedActionException")
     public void testSpecIssue1113() throws Exception {
         String contextRoot = "JSF23Spec1113";
         WebClient webClient = new WebClient();
@@ -605,16 +608,23 @@ public class JSF23GeneralTests {
         // Construct the URL for the test, in this case: faces/selectManyListboxSelectItems.jsp
         url = JSFUtils.createHttpUrl(jsf23Server, contextRoot, "faces/selectManyListboxSelectItems.jsp");
 
-        page = (HtmlPage) webClient.getPage(url);
+        try {
+            Log.info(c, name.getMethodName(), "Invoking JSP page");
+            page = (HtmlPage) webClient.getPage(url);
+        } catch (FailingHttpStatusCodeException e) {
+            String response = e.getResponse().getContentAsString();
+            int statusCode = e.getStatusCode();
 
-        pageXml = page.asXml();
+            Log.info(c, name.getMethodName(), "Caught FailingHttpStatusCodeException");
+            Log.info(c, name.getMethodName(), "FailingHttpStatusCodeException response: " + response);
+            Log.info(c, name.getMethodName(), "FailingHttpStatusCodeException statusCode: " + statusCode);
 
-        // Log the page for debugging if necessary in the future.
-        Log.info(c, name.getMethodName(), page.asText());
-        Log.info(c, name.getMethodName(), pageXml);
-
-        // Test that h:selectManyListbox does not render onselect attribute in a jsp with a select element
-        assertTrue("The onselect attribute was rendered in a jsp.", !pageXml.contains("onselect=\"jsFunction\""));
+            /*
+             * com.ibm.ws.jsp.translator.JspTranslationException:
+             * JSPG0123E: Unable to locate tag attribute info for tag attribute onselect.<br>
+             */
+            assertTrue("The JSP was rendered successfully and it should not have been.", response.contains("JSPG0123E") && statusCode == 500);
+        }
 
         // Construct the URL for the test, in this case: faces/selectManyListboxSelectItems.jsp
         url = JSFUtils.createHttpUrl(jsf23Server, contextRoot, "faces/selectManyCheckboxSelectItems.xhtml");

@@ -59,9 +59,6 @@ public class ServerConfiguration implements Cloneable {
     @XmlElement(name = "virtualHost")
     private ConfigElementList<VirtualHost> virtualHosts;
 
-    @XmlElement(name = "ssl")
-    private ConfigElementList<SSLConfig> ssls;
-
     @XmlElement(name = "wasJmsEndpoint")
     private ConfigElementList<JmsEndpoint> wasJmsEndpoints;
 
@@ -180,6 +177,12 @@ public class ServerConfiguration implements Cloneable {
     @XmlElement(name = "webContainer")
     private WebContainerElement webContainer;
 
+    @XmlElement(name = "sslDefault")
+    private SSLDefault sslDefault;
+
+    @XmlElement(name = "ssl")
+    private ConfigElementList<SSL> ssls;
+
     @XmlElement(name = "keyStore")
     private ConfigElementList<KeyStore> keyStores;
 
@@ -228,11 +231,11 @@ public class ServerConfiguration implements Cloneable {
     @XmlElement(name = "remoteFileAccess")
     private ConfigElementList<RemoteFileAccess> remoteFileAccesses;
 
-    @XmlElement(name = "productInsights")
-    private ProductInsightsElement productInsightsElement;
-
     @XmlElement(name = "apiDiscovery")
     private APIDiscoveryElement apiDiscoveryElement;
+
+    @XmlElement(name = "mpMetrics")
+    private MPMetricsElement mpMetricsElement;
 
     @XmlElement(name = "openapi")
     private OpenAPIElement openAPIElement;
@@ -558,16 +561,6 @@ public class ServerConfiguration implements Cloneable {
     }
 
     /**
-     * @return the ssl configurations for this server
-     */
-    public ConfigElementList<SSLConfig> getSsls() {
-        if (this.ssls == null) {
-            this.ssls = new ConfigElementList<SSLConfig>();
-        }
-        return this.ssls;
-    }
-
-    /**
      * @return the KeyStore configurations for this server
      */
     public ConfigElementList<KeyStore> getKeyStores() {
@@ -578,6 +571,54 @@ public class ServerConfiguration implements Cloneable {
     }
 
     /**
+     * @return the ssl configurations for this server
+     */
+    public ConfigElementList<SSL> getSsls() {
+        if (this.ssls == null) {
+            this.ssls = new ConfigElementList<SSL>();
+        }
+        return this.ssls;
+    }
+
+    /**
+     * @return the sslDefault configuration for this server
+     */
+    public SSLDefault getSSLDefault() {
+        if (this.sslDefault == null) {
+            this.sslDefault = new SSLDefault();
+        }
+        return this.sslDefault;
+    }
+
+    public void setSSLDefault(SSLDefault sslDflt) {
+        this.sslDefault = sslDflt;
+    }
+
+    public SSL getSSLById(String sslCfgId) {
+        ConfigElementList<SSL> sslCfgs = getSsls();
+
+        for (SSL sslEntry : sslCfgs) {
+            if (sslEntry.getId().equals(sslCfgId)) {
+                return sslEntry;
+            }
+        }
+        return null;
+    }
+
+    public void addSSL(SSL sslCfg) {
+
+        ConfigElementList<SSL> sslCfgs = getSsls();
+
+        for (SSL sslEntry : sslCfgs) {
+            if (sslEntry.getId().equals(sslCfg.getId())) {
+                sslCfgs.remove(sslEntry);
+            }
+        }
+        sslCfgs.add(sslCfg);
+        return;
+    }
+
+    /**
      * @return the EJB Container configuration for this server
      */
     public EJBContainerElement getEJBContainer() {
@@ -585,14 +626,6 @@ public class ServerConfiguration implements Cloneable {
             this.ejbContainer = new EJBContainerElement();
         }
         return this.ejbContainer;
-    }
-
-    public ProductInsightsElement getProductInsightsElement() {
-        if (this.productInsightsElement == null) {
-            this.productInsightsElement = new ProductInsightsElement();
-        }
-
-        return this.productInsightsElement;
     }
 
     public APIDiscoveryElement getAPIDiscoveryElement() {
@@ -609,6 +642,14 @@ public class ServerConfiguration implements Cloneable {
         }
 
         return this.openAPIElement;
+    }
+
+    public MPMetricsElement getMPMetricsElement() {
+        if (this.mpMetricsElement == null) {
+            this.mpMetricsElement = new MPMetricsElement();
+        }
+
+        return this.mpMetricsElement;
     }
 
     /**
@@ -708,7 +749,7 @@ public class ServerConfiguration implements Cloneable {
      * Removes all applications with a specific name
      *
      * @param name
-     *                 the name of the applications to remove
+     *            the name of the applications to remove
      * @return the removed applications (no longer bound to the server
      *         configuration)
      */
@@ -729,12 +770,12 @@ public class ServerConfiguration implements Cloneable {
      * a specific name if it already exists
      *
      * @param name
-     *                 the name of the application
+     *            the name of the application
      * @param path
-     *                 the fully qualified path to the application archive on the
-     *                 liberty machine
+     *            the fully qualified path to the application archive on the
+     *            liberty machine
      * @param type
-     *                 the type of the application (ear/war/etc)
+     *            the type of the application (ear/war/etc)
      * @return the deployed application
      */
     public Application addApplication(String name, String path, String type) {
@@ -1018,7 +1059,7 @@ public class ServerConfiguration implements Cloneable {
      * Finds all of the objects in the given config element that implement the
      * ModifiableConfigElement interface.
      *
-     * @param element                  The config element to check.
+     * @param element The config element to check.
      * @param modifiableConfigElements The list containing all modifiable elements.
      * @throws Exception
      */

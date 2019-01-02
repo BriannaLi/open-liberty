@@ -19,17 +19,19 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Set;
 
+import javax.servlet.SessionTrackingMode;
 import javax.servlet.http.Cookie;
 import javax.servlet.http.PushBuilder;
 
 import com.ibm.websphere.ras.Tr;
 import com.ibm.websphere.ras.TraceComponent;
 import com.ibm.websphere.servlet40.IRequest40;
+import com.ibm.ws.session.SessionManagerConfig;
 import com.ibm.ws.webcontainer40.osgi.osgi.WebContainerConstants;
 import com.ibm.ws.webcontainer40.srt.SRTServletRequest40;
 import com.ibm.wsspi.genericbnf.HeaderField;
-import com.ibm.wsspi.http.HttpCookie;
 import com.ibm.wsspi.http.channel.values.HttpHeaderKeys;
+import com.ibm.wsspi.http.ee8.Http2Request;
 
 public class HttpPushBuilder implements PushBuilder, com.ibm.wsspi.http.ee8.Http2PushBuilder {
 
@@ -41,6 +43,7 @@ public class HttpPushBuilder implements PushBuilder, com.ibm.wsspi.http.ee8.Http
     private String _path = null;
     private String _pathURI = null;
     private String _pathQueryString = null;
+    private Enum _sessionIdFromCookieOrUrl;
 
     private static final String HDR_REFERER = HttpHeaderKeys.HDR_REFERER.getName();
     private static final String HDR_IF_MATCH = HttpHeaderKeys.HDR_IF_MATCH.getName();
@@ -48,14 +51,13 @@ public class HttpPushBuilder implements PushBuilder, com.ibm.wsspi.http.ee8.Http
     private static final String HDR_IF_NONE_MATCH = HttpHeaderKeys.HDR_IF_NONE_MATCH.getName();
     private static final String HDR_IF_RANGE = HttpHeaderKeys.HDR_IF_RANGE.getName();
     private static final String HDR_IF_UNMODIFIED_SINCE = HttpHeaderKeys.HDR_IF_UNMODIFIED_SINCE.getName();
-    private static final String COOKIE_HEADER_NAME = "Cookie";
+    private static final String HDR_COOKIE = HttpHeaderKeys.HDR_COOKIE.getName();
+    private static final String HDR_AUTHORIZATION = HttpHeaderKeys.HDR_AUTHORIZATION.getName();
 
     private final SRTServletRequest40 _inboundRequest;
 
     // Used to store headers for the push request
     HashMap<String, HashSet<HttpHeaderField>> _headers = new HashMap<String, HashSet<HttpHeaderField>>();
-    // Used to store cookies for the push request
-    HashSet<HttpCookie> _cookies;
 
     private static ArrayList<String> _invalidMethods = new ArrayList<String>(Arrays.asList("POST",
                                                                                            "PUT",
@@ -68,8 +70,25 @@ public class HttpPushBuilder implements PushBuilder, com.ibm.wsspi.http.ee8.Http
 
         _inboundRequest = request;
         _sessionId = sessionId;
+        Set<SessionTrackingMode> sessionTrackingMode = request.getServletContext().getEffectiveSessionTrackingModes();
+
+        if (request.isRequestedSessionIdFromCookie()) {
+            _sessionIdFromCookieOrUrl = SessionTrackingMode.COOKIE; // set to COOKIE if session Id is coming from the Cookie
+        } else if (request.isRequestedSessionIdFromURL()) {
+            _sessionIdFromCookieOrUrl = SessionTrackingMode.URL; // set to URL if session Id is coming from the URL
+        } else { // default
+            if (sessionTrackingMode.contains(SessionTrackingMode.COOKIE)) {
+                _sessionIdFromCookieOrUrl = SessionTrackingMode.COOKIE;
+            } else {
+                _sessionIdFromCookieOrUrl = SessionTrackingMode.URL;
+            }
+        }
+        if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
+            Tr.debug(tc, "HttpPushBuilder", "_sessionIdFromCookieOrUrl = " + _sessionIdFromCookieOrUrl);
+        }
 
         if (headerNames != null) {
+            SessionManagerConfig smc = _inboundRequest.getWebAppDispatcherContext().getWebApp().getSessionContext().getWASSessionConfig();
 
             // Note: headers passed should already have removed the conditional headers.
             while (headerNames.hasMoreElements()) {
@@ -77,38 +96,42 @@ public class HttpPushBuilder implements PushBuilder, com.ibm.wsspi.http.ee8.Http
                 String headerName = headerNames.nextElement();
                 Enumeration<String> headerValues = request.getHeaders(headerName);
                 while (headerValues.hasMoreElements()) {
-                    addHeader(headerName, headerValues.nextElement());
+                    String headerValue = headerValues.nextElement();
+
+                    // If the header value contains the session cookie header, don't add it to the Push Builder headers
+                    if (!headerValue.contains(smc.getSessionCookieName())) {
+                        addHeader(headerName, headerValue);
+                    }
                 }
             }
+        }
+
+        // If the request is authenticated, an Authorization header should be set to the PushBuilder
+        if (request.getUserPrincipal() != null) {
+            // Set PushBuilder's Authorization header with the same value as the original request
+            this.setHeader(HDR_AUTHORIZATION, request.getHeader(HDR_AUTHORIZATION));
         }
 
         if (addedCookies != null) {
             for (Cookie cookie : addedCookies) {
                 if (cookie.getMaxAge() > 0) {
-                    if (_cookies == null) {
-                        _cookies = new HashSet<HttpCookie>();
-                    }
-                    HttpCookie hc = new HttpCookie(cookie.getName(), cookie.getValue());
-                    hc.setPath(cookie.getPath());
-                    hc.setVersion(cookie.getVersion());
-                    hc.setComment(cookie.getComment());
-                    hc.setDomain(cookie.getDomain());
-                    hc.setMaxAge(cookie.getMaxAge());
-                    hc.setSecure(cookie.getSecure());
-                    hc.setHttpOnly(cookie.isHttpOnly());
-
-                    // Add the cookie to the set of cookies
-                    _cookies.add(hc);
-
                     // Need to add the Cookie to the headers for the push request. Cookies were
                     // added to the response and therefore not included in the Cookie request header.
                     // Without adding this a call to getHeader("Cookie") would return null.
-                    addHeader(COOKIE_HEADER_NAME, cookie.getName() + "=" + cookie.getValue());
+                    addHeader(HDR_COOKIE, cookie.getName() + "=" + cookie.getValue());
                 }
             }
-        } else {
-            _cookies = null;
         }
+
+        // set the REFERER header
+        String referer = _inboundRequest.getRequestURL().toString();
+        String queryString = _inboundRequest.getQueryString();
+
+        if (queryString != null) {
+            referer += "?" + queryString;
+        }
+
+        this.setHeader(HDR_REFERER, referer);
 
     }
 
@@ -232,25 +255,38 @@ public class HttpPushBuilder implements PushBuilder, com.ibm.wsspi.http.ee8.Http
             throw new IllegalStateException();
         }
 
-        String referer = _inboundRequest.getRequestURI();
-        if (_inboundRequest.getQueryString() != null) {
-            referer += "?" + _inboundRequest.getQueryString();
-        }
-        this.setHeader(HDR_REFERER, referer);
-
         if (_queryString != null) {
             if (_pathQueryString != null) {
                 _pathQueryString += "&" + _queryString;
             } else {
                 _pathQueryString = "?" + _queryString;
             }
-            if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
-                Tr.debug(tc, "push()", "path = " + _pathURI + _pathQueryString);
+        }
+
+        if (_pathQueryString != null) {
+            // if the session Id is coming from a URL, append it to the queryString
+            if ((_sessionIdFromCookieOrUrl == SessionTrackingMode.URL) && _sessionId != null) {
+                String urlRewritePrefix = _inboundRequest.getWebAppDispatcherContext().getWebApp().getSessionContext().getWASSessionConfig().getSessUrlRewritePrefix();
+                _pathQueryString += urlRewritePrefix + _sessionId;
+            }
+        } else {
+            // if the session Id is coming from a URL, append it to the URI
+            if ((_sessionIdFromCookieOrUrl == SessionTrackingMode.URL) && _sessionId != null) {
+                String urlRewritePrefix = _inboundRequest.getWebAppDispatcherContext().getWebApp().getSessionContext().getWASSessionConfig().getSessUrlRewritePrefix();
+                _pathURI += urlRewritePrefix + _sessionId;
             }
         }
 
+        // If the session is coming from a Cookie, then add that Cookie to the PushBuilder headers
+        if ((_sessionIdFromCookieOrUrl == SessionTrackingMode.COOKIE) && _sessionId != null) {
+            SessionManagerConfig smc = _inboundRequest.getWebAppDispatcherContext().getWebApp().getSessionContext().getWASSessionConfig();
+
+            // Need to add the Cookie to the headers for the push request.
+            addHeader(HDR_COOKIE, smc.getSessionCookieName() + "=" + _sessionId);
+        }
+
         IRequest40 request = (IRequest40) _inboundRequest.getIRequest();
-        request.getHttpRequest().pushNewRequest(this);
+        ((Http2Request) request.getHttpRequest()).pushNewRequest(this);
         reset();
 
         if (TraceComponent.isAnyTracingEnabled() && tc.isEntryEnabled()) {
@@ -334,11 +370,6 @@ public class HttpPushBuilder implements PushBuilder, com.ibm.wsspi.http.ee8.Http
     @Override
     public String getURI() {
         return this._pathURI;
-    }
-
-    @Override
-    public Set<HttpCookie> getCookies() {
-        return _cookies;
     }
 
     @Override

@@ -12,10 +12,10 @@ package com.ibm.ws.microprofile.config.sources;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 import com.ibm.websphere.ras.Tr;
 import com.ibm.websphere.ras.TraceComponent;
@@ -35,12 +35,17 @@ public class SystemConfigSource extends InternalConfigSource implements StaticCo
 
     /** {@inheritDoc} */
     @Override
-    public ConcurrentMap<String, String> getProperties() {
-        ConcurrentMap<String, String> props = new ConcurrentHashMap<>();
+    public Map<String, String> getProperties() {
+        HashMap<String, String> props = new HashMap<>();
         Properties sysProps = getSystemProperties();
         Set<String> keys = sysProps.stringPropertyNames();
         for (String key : keys) {
-            props.put(key, sysProps.getProperty(key));
+            if (key != null) {
+                String value = sysProps.getProperty(key);
+                if (value != null) { //it is possible that a property could be removed while we are looking at them
+                    props.put(key, value);
+                }
+            }
         }
 
         return props;

@@ -21,6 +21,7 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 
+import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.servlet.http.HttpServletResponse;
 
 import org.apache.http.Header;
@@ -35,6 +36,7 @@ import org.apache.http.client.HttpClient;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.protocol.HTTP;
@@ -49,6 +51,7 @@ public class JavaEESecTestBase {
     // Values to be set by the child class
     protected LibertyServer server;
     protected static Class<?> logClass;
+    protected static String serverConfigurationFile = "server.xml";
 
     protected JavaEESecTestBase(LibertyServer server, Class<?> logClass) {
         this.server = server;
@@ -231,18 +234,30 @@ public class JavaEESecTestBase {
         String location = executeFormLogin(httpClient, formUrl, userid, password, true);
 
         // Redirect to the given page, ensure it is the original servlet request and it returns the right response.
-        return accessPage(httpClient, location);
+        return accessPageUsingGet(httpClient, location);
     }
 
-    protected HttpResponse accessPage(HttpClient client, String location) {
+    protected HttpResponse accessPageUsingGet(HttpClient client, String location) {
+        String methodName = "accessPageUsingGet";
+        Log.info(logClass, methodName, "accessPageUsingGet: location =  " + location);
+        return accessPage(client, new HttpGet(location));
+    }
+
+    protected HttpResponse accessPageUsingPost(HttpClient client, String location, List<NameValuePair> params) throws Exception {
+        String methodName = "accessPageUsingPost";
+        Log.info(logClass, methodName, "accessPageUsingPost: location =  " + location);
+        HttpPost postMethod = new HttpPost(location);
+        postMethod.setEntity(new UrlEncodedFormEntity(params, HTTP.UTF_8));
+        return accessPage(client, postMethod);
+    }
+
+    protected HttpResponse accessPage(HttpClient client, HttpUriRequest request) {
         String methodName = "accessPage";
-        Log.info(logClass, methodName, "accessPageNoChallenge: location =  " + location);
+        Log.info(logClass, methodName, "accessPage: HttpUriRequest =  " + request);
         HttpResponse response = null;
 
         try {
-            // Get method on form login page
-            HttpGet getMethod = new HttpGet(location);
-            response = client.execute(getMethod);
+            response = client.execute(request);
         } catch (IOException e) {
             fail("Caught unexpected exception: " + e);
         }
@@ -442,10 +457,14 @@ public class JavaEESecTestBase {
      */
 
     public String executeFormLogin(HttpClient httpclient, String url, String username, String password, boolean redirect) throws Exception {
-        return executeFormLogin(httpclient, url, username, password, redirect, null);
+        return executeFormLogin(httpclient, url, username, password, redirect, null, null);
     }
 
     public String executeFormLogin(HttpClient httpclient, String url, String username, String password, boolean redirect, String description) throws Exception {
+        return executeFormLogin(httpclient, url, username, password, redirect, description, null);
+    }
+
+    public String executeFormLogin(HttpClient httpclient, String url, String username, String password, boolean redirect, String description, String[] cookies) throws Exception {
         String methodName = "executeFormLogin";
         Log.info(logClass, methodName, "Submitting Login form (POST) =  " + url + " username =" + username + " password=" + password + " description=" + description);
 
@@ -475,18 +494,26 @@ public class JavaEESecTestBase {
 
             location = header.getValue();
             Log.info(logClass, methodName, "Redirect location:  " + location);
-
             Log.info(logClass, methodName, "Modified Redirect location:  " + location);
         } else {
             // Verify we got a 200 from the servlet
             int status = response.getStatusLine().getStatusCode();
             assertTrue("Form login did not result in redirect: " + status, status == HttpServletResponse.SC_OK);
         }
-
+        if (cookies != null) {
+            for (String cookie : cookies) {
+                Header cookieHeader = getCookieHeader(response, cookie);
+                assertCookie(cookieHeader.toString(), false, true);
+            }
+        }
         return location;
     }
 
     public String executeCustomFormLogin(HttpClient httpclient, String url, String username, String password, String viewState) throws Exception {
+        return executeCustomFormLogin(httpclient, url, username, password, viewState, null);
+    }
+
+    public String executeCustomFormLogin(HttpClient httpclient, String url, String username, String password, String viewState, String[] cookies) throws Exception {
         String methodName = "executeCustomFormLogin";
         Log.info(logClass, methodName, "Submitting custom login form (POST) =  " + url + ", username = " + username + ", password = " + password + ", viewState = " + viewState);
 
@@ -516,6 +543,13 @@ public class JavaEESecTestBase {
         Header header = response.getFirstHeader("Location");
         String location = header.getValue();
         Log.info(logClass, methodName, "Redirect location:  " + location);
+
+        if (cookies != null) {
+            for (String cookie : cookies) {
+                Header cookieHeader = getCookieHeader(response, cookie);
+                assertCookie(cookieHeader.toString(), false, true);
+            }
+        }
         return location;
     }
 
@@ -527,6 +561,10 @@ public class JavaEESecTestBase {
      * @return
      */
     protected String accessPageNoChallenge(HttpClient client, String location, int expectedStatusCode, String message) {
+        return accessPageNoChallenge(client, location, expectedStatusCode, message, null);
+    }
+
+    protected String accessPageNoChallenge(HttpClient client, String location, int expectedStatusCode, String message, String[] cookies) {
         String methodName = "accessPageNoChallenge";
         Log.info(logClass, methodName, "accessPageNoChallenge: location =  " + location + " expectedStatusCode =" + expectedStatusCode);
 
@@ -545,6 +583,13 @@ public class JavaEESecTestBase {
 
             EntityUtils.consume(response.getEntity());
 
+            if (cookies != null) {
+                for (String cookie : cookies) {
+                    Header cookieHeader = getCookieHeader(response, cookie);
+                    assertCookie(cookieHeader.toString(), false, true);
+                }
+            }
+
             // Paranoia check, make sure we hit the right servlet
             if (response.getStatusLine().getStatusCode() == 200) {
                 assertTrue("Response did not contain expected content (" + message + ")",
@@ -554,6 +599,13 @@ public class JavaEESecTestBase {
                 assertTrue("Response was not the expected error page: "
                            + Constants.LOGIN_ERROR_PAGE, content.contains(Constants.LOGIN_ERROR_PAGE));
                 return null;
+            } else if (expectedStatusCode == 302) {
+                int status = response.getStatusLine().getStatusCode();
+                assertTrue("Response was not the expected status code : " + status, status == 302);
+                Header header = response.getFirstHeader("Location");
+                String redirecturl = header.getValue();
+                Log.info(logClass, methodName, "Redirect URL:  " + redirecturl);
+                return redirecturl;
             } else {
                 return null;
             }
@@ -561,6 +613,21 @@ public class JavaEESecTestBase {
             fail("Caught unexpected exception: " + e);
             return null;
         }
+    }
+
+    /**
+     *
+     * @param client
+     * @param location
+     * @param expectedStatusCode
+     * @return
+     */
+    protected void accessPageExpectException(HttpClient client, String location) throws IOException, SSLPeerUnverifiedException {
+        String methodName = "accessPageExpectException";
+        Log.info(logClass, methodName, "accessPageExpectException: location =  " + location);
+        HttpGet getMethod = new HttpGet(location);
+        HttpResponse response = client.execute(getMethod);
+        Log.info(logClass, methodName, "getMethod status:  " + response.getStatusLine());
     }
 
     public void mustContain(String response, String target) {
@@ -620,6 +687,30 @@ public class JavaEESecTestBase {
         Log.info(logClass, "verifyUserResponse", "Verify response contains: " + getUserPrincipal + ", " + getRemoteUser);
         mustContain(response, getUserPrincipal);
         mustContain(response, getRemoteUser);
+    }
+
+    protected void verifyEjbErrorUserResponse(String response, String errorMsgs) {
+        Log.info(logClass, "verifyUserResponse", "Verify response contains: " + errorMsgs);
+        mustContain(response, errorMsgs);
+    }
+
+    protected void verifyEjbUserResponse(String response, String ejbBean, String ejbBeanMethod, String getEjbRemoteUser) {
+        Log.info(logClass, "verifyUserResponse", "Verify response contains: " + ejbBean + ", " + ejbBeanMethod + "," + getEjbRemoteUser);
+        mustContain(response, ejbBean);
+        mustContain(response, ejbBeanMethod);
+        mustContain(response, getEjbRemoteUser);
+    }
+
+    protected void verifyEjbRunAsUserResponse(String response, String ejbBean, String ejbBeanMethod, String getEjbRemoteUser, String getEJBRunAsRemoteUser) {
+        Log.info(logClass, "verifyUserResponse", "Verify response contains: " + ejbBean + ", " + ejbBeanMethod + "," + getEjbRemoteUser);
+        mustContain(response, Constants.getEJBBeanResponse + ejbBean);
+        mustContain(response, ejbBeanMethod);
+        mustContain(response, getEjbRemoteUser);
+        mustContain(response, ejbBean + " is invoking injected " + Constants.ejbRunASBean + " running as specified Employee role: ");
+        mustContain(response, Constants.getEJBBeanResponse + Constants.ejbRunASBean);
+        mustContain(response, getEJBRunAsRemoteUser);
+        mustContain(response, Constants.ejbisCallerManagerFale);
+        mustContain(response, Constants.ejbisCallerEmployeeTrue);
     }
 
     protected void verifyGroupIdsResponse(String response, String realmName, String groupName) {
@@ -762,4 +853,28 @@ public class JavaEESecTestBase {
         mustContain(response, isCallerInRoleString);
     }
 
+    /**
+     * This is an internal method used to set the server.xml
+     * if the file in changed, restart the server.
+     */
+    public void setServerConfiguration(String serverXML, String... appNames) throws Exception {
+        if (!serverConfigurationFile.equals(serverXML)) {
+            // Update server.xml
+            Log.info(logClass, "setServerConfiguration", "setServerConfigurationFile to : " + serverXML);
+            server.setMarkToEndOfLog();
+            server.setServerConfigurationFile("/" + serverXML);
+            if (appNames != null) {
+                for (String appName : appNames) {
+                    server.addInstalledAppForValidation(appName);
+                }
+            }
+            serverConfigurationFile = serverXML;
+        }
+    }
+
+    public void assertCookie(String cookieHeaderString, boolean secure, boolean httpOnly) {
+        assertTrue("The Path parameter must be set.", cookieHeaderString.contains("Path=/"));
+        assertEquals("The Secure parameter must" + (secure == true ? "" : " not" + " be set."), secure, cookieHeaderString.contains("Secure"));
+        assertEquals("The HttpOnly parameter must" + (httpOnly == true ? "" : " not" + " be set."), httpOnly, cookieHeaderString.contains("HttpOnly"));
+    }
 }

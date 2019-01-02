@@ -22,8 +22,11 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import com.ibm.websphere.ras.Tr;
 import com.ibm.websphere.ras.TraceComponent;
+import com.ibm.websphere.ras.annotation.Trivial;
+import com.ibm.websphere.security.audit.context.AuditManager;
 import com.ibm.websphere.security.wim.ras.WIMMessageHelper;
 import com.ibm.websphere.security.wim.ras.WIMMessageKey;
+import com.ibm.ws.security.audit.Audit;
 import com.ibm.ws.security.registry.UserRegistry;
 import com.ibm.ws.security.wim.adapter.urbridge.URBridge;
 import com.ibm.ws.security.wim.util.UniqueNameHelper;
@@ -47,6 +50,8 @@ public class RepositoryManager {
 
     private final VMMService vmmService;
 
+    private volatile int numRepos = 0; // short cut for error checking on how many repos we have
+
     private final Map<String, RepositoryWrapper> repositories = new ConcurrentHashMap<String, RepositoryWrapper>();
 
     public RepositoryManager(VMMService service) {
@@ -55,18 +60,34 @@ public class RepositoryManager {
 
     void addConfiguredRepository(String repositoryId, ConfiguredRepository configuredRepository) {
         RepositoryWrapper repositoryHolder = new ConfiguredRepositoryWrapper(repositoryId, configuredRepository);
-        repositories.put(repositoryId, repositoryHolder);
+        addRepository(repositoryId, repositoryHolder);
     }
 
     void addCustomRepository(String repositoryId, CustomRepository customRepository) {
         RepositoryWrapper repositoryHolder = new CustomRepositoryWrapper(repositoryId, customRepository);
+        addRepository(repositoryId, repositoryHolder);
+    }
+
+    /**
+     * Pair adding to the repositories map and resetting the numRepos int.
+     *
+     * @param repositoryId
+     * @param repositoryHolder
+     */
+    private void addRepository(String repositoryId, RepositoryWrapper repositoryHolder) {
         repositories.put(repositoryId, repositoryHolder);
+        try {
+            numRepos = getNumberOfRepositories();
+        } catch (WIMException e) {
+            // okay
+        }
     }
 
     void addUserRegistry(UserRegistry userRegistry) {
         try {
             UserRegistryWrapper repositoryHolder = new UserRegistryWrapper(userRegistry, vmmService.getConfigManager());
-            repositories.put(userRegistry.getRealm(), repositoryHolder);
+            addRepository(userRegistry.getRealm(), repositoryHolder);
+
         } catch (InitializationException e) {
             //TODO will occur on lookup when this is made lazy.
         }
@@ -76,6 +97,11 @@ public class RepositoryManager {
         RepositoryWrapper repositoryHolder = repositories.remove(id);
         if (repositoryHolder != null) {
             repositoryHolder.clear();
+        }
+        try {
+            numRepos = getNumberOfRepositories();
+        } catch (WIMException e) {
+            // okay
         }
     }
 
@@ -130,6 +156,10 @@ public class RepositoryManager {
             return repo;
         }
 
+        AuditManager auditManager = new AuditManager();
+        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), auditManager.getRequestType(), auditManager.getRepositoryId(), uniqueName,
+                    vmmService.getConfigManager().getDefaultRealmName(), null, Integer.valueOf("204"));
+
         throw new InvalidUniqueNameException(WIMMessageKey.ENTITY_NOT_IN_REALM_SCOPE, Tr.formatMessage(
                                                                                                        tc,
                                                                                                        WIMMessageKey.ENTITY_NOT_IN_REALM_SCOPE,
@@ -159,6 +189,18 @@ public class RepositoryManager {
 
     public int getNumberOfRepositories() throws WIMException {
         return getRepoIds().size();
+    }
+
+    /**
+     * Gets the shortcut number of repositories, to do a quick check on the number of repos.
+     * To get the actual map size, call getNumberOfRepositories().
+     *
+     * @return
+     * @throws WIMException
+     */
+    @Trivial
+    public int getNumberOfRepositoriesVolatile() throws WIMException {
+        return numRepos;
     }
 
     /**

@@ -242,7 +242,7 @@ patchingNotApplicableNoChange=Nenhum conte\u00fado foi extra\u00eddo porque n\u0
 
 # {0} is the name of the superseded fix and {1} is the name of the superseding fix.
 patchingSkippedSupersededFix=A corre\u00e7\u00e3o {0} foi substitu\u00edda por {1}, que j\u00e1 est\u00e1 instalada.\n\
-\A instala\u00e7\u00e3o de {0} foi ignorada.
+A instala\u00e7\u00e3o de {0} foi ignorada.
 
 # {0} is the message from the exception that caused us to be unable to create a parser for reading the XML files
 ifixutils.unable.to.create.parser=Ocorreu um erro ao ler as informa\u00e7\u00f5es do iFix para a instala\u00e7\u00e3o atual. A mensagem de exce\u00e7\u00e3o \u00e9: {0}.
@@ -274,6 +274,7 @@ RUN_IN_CHILD_JVM_DEBUG=WLP_JAR_DEBUG foi configurado. O servidor ser\u00e1 execu
 RUN_IN_CHILD_JVM_JVM_OPTIONS=O jar cont\u00e9m arquivos jvm.options. O servidor ser\u00e1 executado em uma Java virtual machine separada.
 RUN_IN_CHILD_JVM_IBM_AGENT_ISSUE=Um IBM SDK est\u00e1 sendo usado sem a op\u00e7\u00e3o -XX:+EnableHCR. O servidor ser\u00e1 executado em uma Java virtual machine separada.
 RUN_IN_CHILD_JVM_JRE=A instala\u00e7\u00e3o do Java Runtime Environment est\u00e1 sendo usada. O servidor ser\u00e1 executado em uma Java virtual machine separada.
+RUN_IN_CHILD_JVM_SET_JAVA_HOME=Configurando a vari\u00e1vel de ambiente JAVA_HOME: {0}
 
 # messages for LicenseSelfEctractor
 LICENSE_invalidInstall=O diret\u00f3rio {0} n\u00e3o \u00e9 uma instala\u00e7\u00e3o Liberty v\u00e1lida. Especifique o diret\u00f3rio-raiz da instala\u00e7\u00e3o Liberty do qual voc\u00ea deseja fazer upgrade.

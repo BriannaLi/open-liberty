@@ -709,12 +709,12 @@ public class JPAPersistenceManagerImpl extends AbstractPersistenceManager implem
     }
 
     @Override
-    public JobInstance updateJobInstanceWithInstanceState(final long jobInstanceId, final InstanceState state, final Date lastUpdated) {
+    public JobInstanceEntity updateJobInstanceWithInstanceState(final long jobInstanceId, final InstanceState state, final Date lastUpdated) {
         EntityManager em = getPsu().createEntityManager();
         try {
-            return new TranRequest<JobInstance>(em) {
+            return new TranRequest<JobInstanceEntity>(em) {
                 @Override
-                public JobInstance call() {
+                public JobInstanceEntity call() {
                     JobInstanceEntity instance = entityMgr.find(JobInstanceEntity.class, jobInstanceId);
                     if (instance == null) {
                         throw new NoSuchJobInstanceException("No job instance found for id = " + jobInstanceId);
@@ -737,7 +737,7 @@ public class JPAPersistenceManagerImpl extends AbstractPersistenceManager implem
     }
 
     @Override
-    public JobInstance updateJobInstanceWithInstanceStateUponRestart(final long jobInstanceId, final InstanceState state, final Date lastUpdated) {
+    public JobInstance updateJobInstanceOnRestart(final long jobInstanceId, final Date lastUpdated) {
         EntityManager em = getPsu().createEntityManager();
         String BASE_UPDATE = "UPDATE JobInstanceEntity x SET x.instanceState = :instanceState,x.batchStatus = :batchStatus";
         if (instanceVersion >= 2)
@@ -762,14 +762,14 @@ public class JPAPersistenceManagerImpl extends AbstractPersistenceManager implem
                     }
 
                     try {
-                        verifyStateTransitionIsValid(instance, state);
+                        verifyStateTransitionIsValid(instance, InstanceState.SUBMITTED);
                         verifyStatusTransitionIsValid(instance, BatchStatus.STARTING);
                     } catch (BatchIllegalJobStatusTransitionException e) {
                         throw new PersistenceException(e);
                     }
 
                     Query jpaQuery = entityMgr.createQuery(FINAL_UPDATE);
-                    jpaQuery.setParameter("instanceState", state);
+                    jpaQuery.setParameter("instanceState", InstanceState.SUBMITTED);
                     jpaQuery.setParameter("instanceId", jobInstanceId);
                     if (instanceVersion >= 2)
                         jpaQuery.setParameter("lastUpdatedTime", lastUpdated);
@@ -782,6 +782,110 @@ public class JPAPersistenceManagerImpl extends AbstractPersistenceManager implem
                     } else {
                         String msg = "The job instance " + jobInstanceId + " cannot be restarted because it is still in a non-final state.";
                         throw new JobRestartException(msg);
+                    }
+                    return instance;
+                }
+            }.runInNewOrExistingGlobalTran();
+        } finally {
+            em.close();
+        }
+    }
+
+    @Override
+    public JobInstanceEntity updateJobInstanceStateOnConsumed(final long jobInstanceId) {
+        EntityManager em = getPsu().createEntityManager();
+        String BASE_UPDATE = "UPDATE JobInstanceEntity x SET x.instanceState = com.ibm.jbatch.container.ws.InstanceState.JMS_CONSUMED";
+        if (instanceVersion >= 2) {
+            BASE_UPDATE = BASE_UPDATE.replace("JobInstanceEntity", "JobInstanceEntityV2").concat(",x.lastUpdatedTime = :lastUpdatedTime");
+        }
+        StringBuilder query = new StringBuilder().append(BASE_UPDATE);
+        StringBuilder whereClause = new StringBuilder();
+
+        whereClause.append("x.instanceId = :instanceId");
+        whereClause.append(" AND x.instanceState = com.ibm.jbatch.container.ws.InstanceState.JMS_QUEUED");
+
+        query.append(" WHERE " + whereClause);
+        final String FINAL_UPDATE = query.toString();
+
+        try {
+            return new TranRequest<JobInstanceEntity>(em) {
+                @Override
+                public JobInstanceEntity call() {
+                    JobInstanceEntity instance = entityMgr.find(JobInstanceEntity.class, jobInstanceId);/* , LockModeType.PESSIMISTIC_WRITE); */
+                    if (instance == null) {
+                        throw new NoSuchJobInstanceException("No job instance found for id = " + jobInstanceId);
+                    }
+
+                    try {
+                        verifyStateTransitionIsValid(instance, InstanceState.JMS_CONSUMED);
+                    } catch (BatchIllegalJobStatusTransitionException e) {
+                        throw new PersistenceException(e);
+                    }
+
+                    Query jpaQuery = entityMgr.createQuery(FINAL_UPDATE);
+                    jpaQuery.setParameter("instanceId", jobInstanceId);
+                    if (instanceVersion >= 2)
+                        jpaQuery.setParameter("lastUpdatedTime", new Date());
+
+                    int count = jpaQuery.executeUpdate();
+                    if (count > 0) {
+                        logger.finer("Match on updateJobInstanceStateOnConsumed query for instance =  " + jobInstanceId);
+                        // Need to refresh to pick up changes made to the database
+                        entityMgr.refresh(instance);
+                    } else {
+                        logger.finer("No match on updateJobInstanceStateOnConsumed query for instance =  " + jobInstanceId);
+                    }
+                    return instance;
+                }
+            }.runInNewOrExistingGlobalTran();
+        } finally {
+            em.close();
+        }
+    }
+
+    @Override
+    public JobInstanceEntity updateJobInstanceStateOnQueued(final long jobInstanceId) {
+        EntityManager em = getPsu().createEntityManager();
+        String BASE_UPDATE = "UPDATE JobInstanceEntity x SET x.instanceState = com.ibm.jbatch.container.ws.InstanceState.JMS_QUEUED";
+        if (instanceVersion >= 2) {
+            BASE_UPDATE = BASE_UPDATE.replace("JobInstanceEntity", "JobInstanceEntityV2").concat(",x.lastUpdatedTime = :lastUpdatedTime");
+        }
+        StringBuilder query = new StringBuilder().append(BASE_UPDATE);
+        StringBuilder whereClause = new StringBuilder();
+
+        whereClause.append("x.instanceId = :instanceId");
+        whereClause.append(" AND x.instanceState = com.ibm.jbatch.container.ws.InstanceState.SUBMITTED");
+
+        query.append(" WHERE " + whereClause);
+        final String FINAL_UPDATE = query.toString();
+
+        try {
+            return new TranRequest<JobInstanceEntity>(em) {
+                @Override
+                public JobInstanceEntity call() {
+                    JobInstanceEntity instance = entityMgr.find(JobInstanceEntity.class, jobInstanceId);
+                    if (instance == null) {
+                        throw new NoSuchJobInstanceException("No job instance found for id = " + jobInstanceId);
+                    }
+
+                    try {
+                        verifyStateTransitionIsValid(instance, InstanceState.JMS_QUEUED);
+                    } catch (BatchIllegalJobStatusTransitionException e) {
+                        throw new PersistenceException(e);
+                    }
+
+                    Query jpaQuery = entityMgr.createQuery(FINAL_UPDATE);
+                    jpaQuery.setParameter("instanceId", jobInstanceId);
+                    if (instanceVersion >= 2)
+                        jpaQuery.setParameter("lastUpdatedTime", new Date());
+
+                    int count = jpaQuery.executeUpdate();
+                    if (count > 0) {
+                        logger.finer("Match on updateJobInstanceStateOnQueued query for instance =  " + jobInstanceId);
+                        // Need to refresh to pick up changes made to the database
+                        entityMgr.refresh(instance);
+                    } else {
+                        logger.finer("No match on updateJobInstanceStateOnQueued query for instance =  " + jobInstanceId);
                     }
                     return instance;
                 }
@@ -951,9 +1055,8 @@ public class JPAPersistenceManagerImpl extends AbstractPersistenceManager implem
     }
 
     @Override
-    // This sets state to STOPPED, so ideally would be renamed (which is a pain).
-    public JobExecution updateJobExecutionAndInstanceNotSetToServerYet(final long jobExecutionId,
-                                                                       final Date updateTime) throws NoSuchJobExecutionException, ExecutionAssignedToServerException {
+    public JobExecution updateJobExecutionAndInstanceOnStopBeforeServerAssigned(final long jobExecutionId,
+                                                                                final Date updateTime) throws NoSuchJobExecutionException, ExecutionAssignedToServerException {
         final EntityManager em = getPsu().createEntityManager();
 
         try {
@@ -979,6 +1082,12 @@ public class JPAPersistenceManagerImpl extends AbstractPersistenceManager implem
                         verifyStateTransitionIsValid(instance, InstanceState.STOPPED);
                     } catch (BatchIllegalJobStatusTransitionException e) {
                         throw new PersistenceException(e);
+                    }
+
+                    // Don't want to update the last updated
+                    if (instance.getInstanceState() == InstanceState.STOPPED) {
+                        logger.finer("Returning since instance = " + instance.getInstanceId() + " is already STOPPED.");
+                        return execution;
                     }
 
                     instance.setBatchStatus(BatchStatus.STOPPED);
@@ -1041,11 +1150,9 @@ public class JPAPersistenceManagerImpl extends AbstractPersistenceManager implem
                         exec.getJobInstance().setLastUpdatedTime(endTime);
                         // set the state to be the same value as the batchstatus
                         // Note: we only want to do this is if the batchStatus is one of the "done" statuses.
-                        if (FINAL_STATUS_SET.contains(finalBatchStatus)) {
+                        if (isFinalBatchStatus(finalBatchStatus)) {
                             InstanceState newInstanceState = InstanceState.valueOf(finalBatchStatus.toString());
-
                             verifyStateTransitionIsValid(exec.getJobInstance(), newInstanceState);
-
                             exec.getJobInstance().setInstanceState(newInstanceState);
                         }
                         exec.setLastUpdatedTime(endTime);
@@ -2785,7 +2892,7 @@ public class JPAPersistenceManagerImpl extends AbstractPersistenceManager implem
                     logger.fine("Next chained JobInstanceEntityV3 persistence exception: exc class = " + causeClassName + "; causeMsg = " + causeMsg);
                     if ((cause instanceof SQLSyntaxErrorException || causeClassName.contains("SqlSyntaxErrorException")) &&
                         causeMsg != null &&
-                        causeMsg.contains("GROUPASSOCIATION")) {
+                        causeMsg.contains("GROUPASSOCIATION") || causeMsg.contains("GROUPNAMES")) {
                         // The GROUPASSOCIATION support isn't there.
                         logger.fine("The GROUPASSOCIATION table does not exist, job instance table version = 2");
                         instanceVersion = 2;

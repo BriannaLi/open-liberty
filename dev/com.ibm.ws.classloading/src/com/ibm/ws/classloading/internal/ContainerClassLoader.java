@@ -56,9 +56,12 @@ import org.osgi.util.tracker.ServiceTrackerCustomizer;
 import com.ibm.websphere.ras.Tr;
 import com.ibm.websphere.ras.TraceComponent;
 import com.ibm.websphere.ras.annotation.Trivial;
+import com.ibm.ws.classloading.configuration.GlobalClassloadingConfiguration;
 import com.ibm.ws.classloading.internal.util.ClassRedefiner;
 import com.ibm.ws.ffdc.FFDCFilter;
 import com.ibm.ws.ffdc.annotation.FFDCIgnore;
+import com.ibm.ws.kernel.boot.classloader.ClassLoaderHook;
+import com.ibm.ws.kernel.boot.classloader.ClassLoaderHookFactory;
 import com.ibm.ws.kernel.feature.ServerStarted;
 import com.ibm.ws.kernel.security.thread.ThreadIdentityManager;
 import com.ibm.ws.util.CacheHashMap;
@@ -74,7 +77,6 @@ import com.ibm.wsspi.kernel.service.utils.PathUtils;
 
 abstract class ContainerClassLoader extends IdentifiedLoader {
     static final TraceComponent tc = Tr.register(ContainerClassLoader.class);
-    static final URL[] EMPTY_URL_ARRAY = {};
 
     /**
      * This class will stop JARs from being cached when they are being read from. This will prevent java from keeping a stream open to the file and thus locking it so
@@ -104,11 +106,15 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
      * The one and only instance of the smartClassPath, responsible for
      * coordinating lookups to the Container classpath.
      */
-    private volatile SmartClassPath smartClassPath = new UnreadSmartClassPath();
+    private volatile SmartClassPath smartClassPath;
 
     private final List<UniversalContainer> nativeLibraryContainers = new ArrayList<UniversalContainer>();
 
     private final ClassRedefiner redefiner;
+
+    protected final ClassLoaderHook hook;
+
+    final String jarProtocol;
 
     /**
      * Util method to totally read an input stream into a byte array.
@@ -197,6 +203,18 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
         void updatePackageMap(Map<Integer, List<UniversalContainer>> map);
     }
 
+    private static byte[] getClassBytesFromHook(UniversalContainer.UniversalResource resource, String resourceName, ClassLoaderHook hook) {
+        byte[] bytes = null;
+        if (hook != null && resourceName.endsWith(".class")) {
+            URL resourcePath = resource.getResourceURL();
+            if (resourcePath != null) {
+                String className = resourceName.replace('/','.').substring(0, resourceName.length() - 6);
+                bytes = hook.loadClass(resourcePath, className);
+            }
+        }
+        return bytes;
+    }
+
     /**
      * Implementation of UniversalResource backed by an adaptable Entry.
      */
@@ -204,11 +222,13 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
         final Container container;
         final Entry entry;
         final String resourceName;
+        final ClassLoaderHook hook;
 
-        public EntryUniversalResource(Container container, Entry entry, String resourceName) {
+        public EntryUniversalResource(Container container, Entry entry, String resourceName, ClassLoaderHook hook) {
             this.container = container;
             this.entry = entry;
             this.resourceName = resourceName;
+            this.hook = hook;
         }
 
         @Override
@@ -241,9 +261,13 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
 
         @Override
         public ByteResourceInformation getByteResourceInformation() throws IOException {
+            byte[] bytes = ContainerClassLoader.getClassBytesFromHook(this, resourceName, hook);
+
             try {
-                InputStream is = this.entry.adapt(InputStream.class);
-                byte[] bytes = ContainerClassLoader.getBytes(is, (int) entry.getSize());
+                if (bytes == null) {
+                    InputStream is = this.entry.adapt(InputStream.class);
+                    bytes = ContainerClassLoader.getBytes(is, (int) entry.getSize());
+                }
                 return new EntryByteResourceInformation(bytes, this.entry, this.container, resourceName);
             } catch (UnableToAdaptException e) {
                 throw new IOException(e);
@@ -266,9 +290,11 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
 
     private static class ContainerUniversalResource implements UniversalContainer.UniversalResource {
         private final Container container;
+        private String jarProtocol;
 
-        public ContainerUniversalResource(Container c) {
+        public ContainerUniversalResource(Container c, String jarProtocol) {
             container = c;
+            this.jarProtocol = jarProtocol;
         }
 
         @Override
@@ -278,7 +304,16 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
                 return null;
 
             // best we can do is return the first one
-            return urls.iterator().next();
+            URL result = urls.iterator().next();
+            if ("file".equals(result.getProtocol()) && !(result.getPath().endsWith("/"))) {
+                // TODO can this apply to non file: URLs?
+                try {
+                    return new URL(jarProtocol + result.toExternalForm() + "!/");
+                } catch (MalformedURLException e) {
+                    return result;
+                }
+            }
+            return result;
         }
 
         @Override
@@ -298,11 +333,15 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
     private static class ContainerUniversalContainer implements UniversalContainer {
         private final Container container;
         private final boolean isRoot;
+        private final ClassLoaderHook hook;
+        private final String jarProtocol;
         private String debugString;
 
-        public ContainerUniversalContainer(Container container) {
+        public ContainerUniversalContainer(Container container, ClassLoaderHook hook, String jarProtocol) {
             this.container = container;
             this.isRoot = container.isRoot();
+            this.hook = hook;
+            this.jarProtocol = jarProtocol;
         }
 
         @Override
@@ -323,13 +362,13 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
 
             // handle "" and "/" for roots since they refer to the container itself
             if (path.length() == 0 || path.equals("/")) {
-                return new ContainerUniversalResource(this.container);
+                return new ContainerUniversalResource(this.container, jarProtocol);
             }
 
             //try a lookup for the path in the container.
             Entry e = this.container.getEntry(path);
             if (e != null) {
-                return new EntryUniversalResource(this.container, e, path);
+                return new EntryUniversalResource(this.container, e, path, hook);
             } else {
                 return null;
             }
@@ -392,11 +431,13 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
         final ArtifactContainer container;
         final ArtifactEntry entry;
         final String resourceName;
+        final ClassLoaderHook hook;
 
-        public ArtifactEntryUniversalResource(ArtifactContainer container, ArtifactEntry entry, String resourceName) {
+        public ArtifactEntryUniversalResource(ArtifactContainer container, ArtifactEntry entry, String resourceName, ClassLoaderHook hook) {
             this.container = container;
             this.entry = entry;
             this.resourceName = resourceName;
+            this.hook = hook;
         }
 
         @Override
@@ -428,10 +469,13 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
 
         @Override
         public ByteResourceInformation getByteResourceInformation() throws IOException {
-            InputStream is = this.entry.getInputStream();
-            byte[] bytes = ContainerClassLoader.getBytes(is, (int) entry.getSize());
-            return new ArtifactEntryByteResourceInformation(bytes, this.entry, this.container, resourceName);
+            byte[] bytes = ContainerClassLoader.getClassBytesFromHook(this, resourceName, hook);
 
+            if (bytes == null) {
+                InputStream is = this.entry.getInputStream();
+                bytes = ContainerClassLoader.getBytes(is, (int) entry.getSize());
+            }
+            return new ArtifactEntryByteResourceInformation(bytes, this.entry, this.container, resourceName);
         }
 
         @Override
@@ -453,10 +497,12 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
     private static class ArtifactContainerUniversalContainer implements UniversalContainer {
         final ArtifactContainer container;
         final boolean isRoot;
+        final ClassLoaderHook hook;
 
-        public ArtifactContainerUniversalContainer(ArtifactContainer container) {
+        public ArtifactContainerUniversalContainer(ArtifactContainer container, ClassLoaderHook hook) {
             this.container = container;
             this.isRoot = container.isRoot();
+            this.hook = hook;
         }
 
         @Override
@@ -489,7 +535,7 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
                 //try a lookup for the path in the container.
                 ArtifactEntry e = this.container.getEntry(path);
                 if (e != null) {
-                    return new ArtifactEntryUniversalResource(this.container, e, path);
+                    return new ArtifactEntryUniversalResource(this.container, e, path, hook);
                 } else {
                     return null;
                 }
@@ -646,6 +692,7 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
     private static class SmartClassPathImpl implements SmartClassPath {
         final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock(true);
         final AtomicInteger outstandingContainers = new AtomicInteger(0);
+        final ClassLoaderHook hook;
 
         final static boolean usePackageMap = !Boolean.getBoolean("com.ibm.ws.classloading.container.disableMap");
         final static Integer maxLastNotFound = Integer.getInteger("com.ibm.ws.classloading.container.lastNotFound", 250);
@@ -692,6 +739,12 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
         final Map<Integer, List<UniversalContainer>> packageMap = usePackageMap ? new HashMap<Integer, List<UniversalContainer>>() : null;
 
         final Set<Container> containers = Collections.newSetFromMap(new WeakHashMap<Container, Boolean>());
+
+        final String jarProtocol;
+        SmartClassPathImpl(ClassLoaderHook hook, String jarProtocol) {
+            this.hook = hook;
+            this.jarProtocol = jarProtocol;
+        }
 
         /**
          * Internal method to add a new UniversalContainer to the list.
@@ -751,12 +804,12 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
         @Override
         public void addContainer(Container container) {
             containers.add(container);
-            addUniversalContainers(new ContainerUniversalContainer(container));
+            addUniversalContainers(new ContainerUniversalContainer(container, hook, jarProtocol));
         }
 
         @Override
         public void addArtifactContainer(ArtifactContainer container) {
-            addUniversalContainers(new ArtifactContainerUniversalContainer(container));
+            addUniversalContainers(new ArtifactContainerUniversalContainer(container, hook));
         }
 
         private List<UniversalContainer> getUniversalContainersForPath(String path, List<UniversalContainer> classpath) {
@@ -990,7 +1043,7 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
         SmartClassPathImpl delegate;
 
         UnreadSmartClassPath() {
-            delegate = new SmartClassPathImpl();
+            delegate = new SmartClassPathImpl(hook, jarProtocol);
         }
 
         @Override
@@ -1286,11 +1339,15 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
      * @param classpath Containers to use as classpath entries.
      * @param parent classloader to act as parent.
      */
-    public ContainerClassLoader(List<Container> classpath, ClassLoader parent, ClassRedefiner redefiner) {
+    public ContainerClassLoader(List<Container> classpath, ClassLoader parent, ClassRedefiner redefiner, GlobalClassloadingConfiguration config) {
         super(parent);
-
+        this.jarProtocol = config.useJarUrls() ? "jar:" : "wsjar:";
         //Temporary, reintroduced until WSJAR is implemented.
         JarCacheDisabler.disableJarCaching();
+
+        hook = ClassLoaderHookFactory.getClassLoaderHook(this);
+
+        smartClassPath = new UnreadSmartClassPath();
 
         if (classpath != null) {
             for (Container c : classpath) {
@@ -1483,7 +1540,7 @@ abstract class ContainerClassLoader extends IdentifiedLoader {
     }
 
     protected void addNativeLibraryContainer(Container container) {
-        nativeLibraryContainers.add(new ContainerUniversalContainer(container));
+        nativeLibraryContainers.add(new ContainerUniversalContainer(container, hook, jarProtocol));
     }
 
     /**

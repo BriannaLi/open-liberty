@@ -20,7 +20,6 @@ import javax.enterprise.inject.spi.PassivationCapable;
 
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
-import org.eclipse.microprofile.config.spi.ConfigProviderResolver;
 
 import com.ibm.websphere.ras.annotation.Trivial;
 
@@ -49,7 +48,6 @@ public class ConfigBean extends AbstractConfigBean<Config> implements Bean<Confi
     /** {@inheritDoc} */
     @Override
     public void destroy(Config config, CreationalContext<Config> creationalContext) {
-        ConfigProviderResolver.instance().releaseConfig(config);
         creationalContext.release();
     }
 

@@ -19,8 +19,6 @@
 
 package org.apache.cxf.jaxrs.utils;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -40,7 +38,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -92,8 +89,8 @@ import org.apache.cxf.common.util.PropertyUtils;
 import org.apache.cxf.common.util.ReflectionUtil;
 import org.apache.cxf.common.util.StringUtils;
 import org.apache.cxf.helpers.DOMUtils;
-import org.apache.cxf.helpers.IOUtils;
 import org.apache.cxf.interceptor.Fault;
+import org.apache.cxf.io.DelegatingInputStream;
 import org.apache.cxf.io.ReaderInputStream;
 import org.apache.cxf.jaxrs.JAXRSServiceImpl;
 import org.apache.cxf.jaxrs.ext.ContextProvider;
@@ -214,7 +211,7 @@ public final class JAXRSUtils {
                 types = ((AbstractConfigurableProvider) provider).getProduceMediaTypes();
             }
             if (types != null) {
-                values = !types.isEmpty() ? types.toArray(new String[types.size()]) : new String[] { "*/*" };
+                values = !types.isEmpty() ? types.toArray(new String[0]) : new String[] { "*/*" };
             }
         }
         return values;
@@ -570,7 +567,7 @@ public final class JAXRSUtils {
         return logLevel;
     }
 
-    public static List<MediaType> intersectSortMediaTypes(List<MediaType> acceptTypes,
+    private static List<MediaType> intersectSortMediaTypes(List<MediaType> acceptTypes,
                                                           List<MediaType> producesTypes,
                                                           final boolean checkDistance) {
         List<MediaType> all = intersectMimeTypes(acceptTypes, producesTypes, true, checkDistance);
@@ -834,18 +831,23 @@ public final class JAXRSUtils {
                                            MultivaluedMap<String, String> values,
                                            Message message,
                                            OperationResourceInfo ori) throws IOException, WebApplicationException {
-        InputStream is = copyAndGetEntityStream(message); // Liberty change
-        if (is == null) {
-            Reader reader = message.getContent(Reader.class);
-            if (reader != null) {
-                is = new ReaderInputStream(reader);
-            }
-        }
         if (parameter.getType() == ParameterType.REQUEST_BODY) {
 
             if (parameterClass == AsyncResponse.class) {
                 return new AsyncResponseImpl(message);
             }
+
+            // Liberty change start
+            InputStream is = message.getContent(InputStream.class);
+            if (is == null) {
+                Reader reader = message.getContent(Reader.class);
+                if (reader != null) {
+                    is = new ReaderInputStream(reader);
+                }
+            } else if (is instanceof DelegatingInputStream) {
+                ((DelegatingInputStream)is).cacheInput();
+            }
+            // Liberty change end
 
             String contentType = (String) message.get(Message.CONTENT_TYPE);
 
@@ -976,9 +978,14 @@ public final class JAXRSUtils {
             m.put(FormUtils.FORM_PARAM_MAP, params);
 
             if (mt == null || mt.isCompatible(MediaType.APPLICATION_FORM_URLENCODED_TYPE)) {
-                InputStream entityStream = copyAndGetEntityStream(m); // Liberty change
+                // Liberty change start
+                InputStream is = m.getContent(InputStream.class);
+                if (is instanceof DelegatingInputStream) {
+                    ((DelegatingInputStream)is).cacheInput();
+                }
+                // Liberty change end
                 String enc = HttpUtils.getEncoding(mt, StandardCharsets.UTF_8.name());
-                String body = FormUtils.readBody(entityStream, enc); // Liberty change
+                String body = FormUtils.readBody(is, enc); // Liberty change
                 FormUtils.populateMapFromStringOrHttpRequest(params, m, body, enc, false);
             } else {
                 if ("multipart".equalsIgnoreCase(mt.getType())
@@ -1264,7 +1271,6 @@ public final class JAXRSUtils {
                 String value = null;
                 if (index == -1) {
                     name = part;
-                    value = ""; //Liberty change - this probably shouldn't have been removed from CXF
                 } else {
                     name = part.substring(0, index);
                     value = index < part.length() ? part.substring(index + 1) : "";
@@ -1435,27 +1441,21 @@ public final class JAXRSUtils {
     public static boolean matchConsumeTypes(MediaType requestContentType,
                                             OperationResourceInfo ori) {
 
-        // Liberty change begin
         return doMimeTypesIntersect(ori.getConsumeTypes(), requestContentType);
-        // Liberty change end
     }
 
     public static boolean matchProduceTypes(MediaType acceptContentType,
                                             OperationResourceInfo ori) {
 
-        // Liberty change begin
         return doMimeTypesIntersect(ori.getProduceTypes(), acceptContentType);
-        // Liberty change end
     }
 
     public static boolean matchMimeTypes(MediaType requestContentType,
                                          MediaType acceptContentType,
                                          OperationResourceInfo ori) {
 
-        // Liberty change begin
-        return doMimeTypesIntersect(ori.getConsumeTypes(), requestContentType) &&
-               doMimeTypesIntersect(ori.getProduceTypes(), acceptContentType);
-        // Liberty change end
+        return doMimeTypesIntersect(ori.getConsumeTypes(), requestContentType)
+                && doMimeTypesIntersect(ori.getProduceTypes(), acceptContentType);
     }
 
     public static List<MediaType> parseMediaTypes(String types) {
@@ -1480,6 +1480,16 @@ public final class JAXRSUtils {
         return acceptValues;
     }
 
+    public static boolean doMimeTypesIntersect(List<MediaType> mimeTypesA, MediaType mimeTypeB) {
+        return doMimeTypesIntersect(mimeTypesA, Collections.singletonList(mimeTypeB));
+    }
+
+    public static boolean doMimeTypesIntersect(List<MediaType> requiredMediaTypes, List<MediaType> userMediaTypes) {
+        final NonAccumulatingIntersector intersector = new NonAccumulatingIntersector();
+        intersectMimeTypes(requiredMediaTypes, userMediaTypes, intersector);
+        return intersector.doIntersect();
+    }
+
     /**
      * intersect two mime types
      *
@@ -1493,47 +1503,18 @@ public final class JAXRSUtils {
         return intersectMimeTypes(requiredMediaTypes, userMediaTypes, addRequiredParamsIfPossible, false);
     }
 
-    // Liberty change begin
-    public static boolean doMimeTypesIntersect(List<MediaType> requiredMediaTypes,
-                                               List<MediaType> userMediaTypes) {
-        for (MediaType requiredType : requiredMediaTypes) {
-            for (MediaType userType : userMediaTypes) {
-                boolean isCompatible = isMediaTypeCompatible(requiredType, userType);
-                if (isCompatible) {
-                    boolean parametersMatched = true;
-                    for (Map.Entry<String, String> entry : userType.getParameters().entrySet()) {
-                        String value = requiredType.getParameters().get(entry.getKey());
-                        if (value != null && entry.getValue() != null
-                            && !(stripDoubleQuotesIfNeeded(value).equals(stripDoubleQuotesIfNeeded(entry.getValue())))) {
-                            if (HTTP_CHARSET_PARAM.equals(entry.getKey())
-                                && value.equalsIgnoreCase(entry.getValue())) {
-                                continue;
-                            }
-                            parametersMatched = false;
-                            break;
-                        }
-                    }
-                    if (!parametersMatched) {
-                        continue;
-                    }
-                    return true;
-                }
-            }
-        }
-        return false;
-
-    }
-
-    public static boolean doMimeTypesIntersect(List<MediaType> mimeTypesA, MediaType mimeTypeB) {
-        return doMimeTypesIntersect(mimeTypesA, Collections.singletonList(mimeTypeB));
-    }
-    // Liberty change end
-
     public static List<MediaType> intersectMimeTypes(List<MediaType> requiredMediaTypes,
                                                      List<MediaType> userMediaTypes,
                                                      boolean addRequiredParamsIfPossible,
                                                      boolean addDistanceParameter) {
-        Set<MediaType> supportedMimeTypeList = new LinkedHashSet<MediaType>();
+        final AccumulatingIntersector intersector = new AccumulatingIntersector(addRequiredParamsIfPossible,
+                addDistanceParameter);
+        intersectMimeTypes(requiredMediaTypes, userMediaTypes, intersector);
+        return new ArrayList<>(intersector.getSupportedMimeTypeList());
+    }
+
+    private static void intersectMimeTypes(List<MediaType> requiredMediaTypes, List<MediaType> userMediaTypes,
+            MimeTypesIntersector intersector) {
 
         for (MediaType requiredType : requiredMediaTypes) {
             for (MediaType userType : userMediaTypes) {
@@ -1542,12 +1523,10 @@ public final class JAXRSUtils {
                     boolean parametersMatched = true;
                     for (Map.Entry<String, String> entry : userType.getParameters().entrySet()) {
                         String value = requiredType.getParameters().get(entry.getKey());
-                        if (value != null && entry.getValue() != null
-                            && !(stripDoubleQuotesIfNeeded(value).equals(
-                                                                         stripDoubleQuotesIfNeeded(entry.getValue())))) {
+                        if (value != null && entry.getValue() != null && !(stripDoubleQuotesIfNeeded(value)
+                                .equals(stripDoubleQuotesIfNeeded(entry.getValue())))) {
 
-                            if (HTTP_CHARSET_PARAM.equals(entry.getKey())
-                                && value.equalsIgnoreCase(entry.getValue())) {
+                            if (HTTP_CHARSET_PARAM.equals(entry.getKey()) && value.equalsIgnoreCase(entry.getValue())) {
                                 continue;
                             }
                             parametersMatched = false;
@@ -1557,38 +1536,13 @@ public final class JAXRSUtils {
                     if (!parametersMatched) {
                         continue;
                     }
-                    boolean requiredTypeWildcard = requiredType.getType().equals(MediaType.MEDIA_TYPE_WILDCARD);
-                    boolean requiredSubTypeWildcard = requiredType.getSubtype().contains(MediaType.MEDIA_TYPE_WILDCARD);
 
-                    String type = requiredTypeWildcard ? userType.getType() : requiredType.getType();
-                    String subtype = requiredSubTypeWildcard ? userType.getSubtype() : requiredType.getSubtype();
-
-                    Map<String, String> parameters = userType.getParameters();
-                    if (addRequiredParamsIfPossible) {
-                        parameters = new LinkedHashMap<String, String>(parameters);
-                        for (Map.Entry<String, String> entry : requiredType.getParameters().entrySet()) {
-                            if (!parameters.containsKey(entry.getKey())) {
-                                parameters.put(entry.getKey(), entry.getValue());
-                            }
-                        }
+                    if (!intersector.intersect(requiredType, userType)) {
+                        return;
                     }
-                    if (addDistanceParameter) {
-                        int distance = 0;
-                        if (requiredTypeWildcard) {
-                            distance++;
-                        }
-                        if (requiredSubTypeWildcard) {
-                            distance++;
-                        }
-                        parameters.put(MEDIA_TYPE_DISTANCE_PARAM, Integer.toString(distance));
-                    }
-                    supportedMimeTypeList.add(new MediaType(type, subtype, parameters));
                 }
             }
         }
-
-        return new ArrayList<>(supportedMimeTypeList);
-
     }
 
     private static String stripDoubleQuotesIfNeeded(String value) {
@@ -1599,7 +1553,7 @@ public final class JAXRSUtils {
         return value;
     }
 
-    public static boolean isMediaTypeCompatible(MediaType requiredType, MediaType userType) {
+    private static boolean isMediaTypeCompatible(MediaType requiredType, MediaType userType) {
         boolean isCompatible = requiredType.isCompatible(userType);
         if (!isCompatible && requiredType.getType().equalsIgnoreCase(userType.getType())) {
             isCompatible = compareCompositeSubtypes(requiredType, userType,
@@ -1910,20 +1864,4 @@ public final class JAXRSUtils {
     public static JaxRsRuntimeException toJaxRsRuntimeException(Throwable ex) {
         return new JaxRsRuntimeException(ex);
     }
-
-    // Liberty change start
-    // copy the input stream so that it is not inadvertently closed
-    private static InputStream copyAndGetEntityStream(Message m) {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try {
-            IOUtils.copy(m.getContent(InputStream.class), baos);
-        } catch (IOException e) {
-            throw ExceptionUtils.toInternalServerErrorException(e, null);
-        }
-        final byte[] copiedBytes = baos.toByteArray();
-        m.setContent(InputStream.class, new ByteArrayInputStream(copiedBytes));
-        m.setContent(ByteArrayInputStream.class, new ByteArrayInputStream(copiedBytes));
-        return new ByteArrayInputStream(copiedBytes);
-    }
-    // Liberty change end
 }

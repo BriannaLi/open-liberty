@@ -48,14 +48,16 @@ public class DataFrameTests extends H2FATDriverServlet {
         CountDownLatch blockUntilConnectionIsDone = new CountDownLatch(1);
         String testName = "testDataOnIdleStream";
         Http2Client h2Client = getDefaultH2Client(request, response, blockUntilConnectionIsDone);
+
+        byte[] debugData = "DATA Frame Received in the wrong state of: IDLE".getBytes();
+        FrameGoAway errorFrame = new FrameGoAway(0, debugData, PROTOCOL_ERROR, 1, false);
+        h2Client.addExpectedFrame(errorFrame);
+
         FrameHeaders headers = setupDefaultPreface(h2Client);
 
         String dataString = "invalid data frame";
         FrameData data = new FrameData(3, dataString.getBytes(), 0, false, false, false);
 
-        byte[] debugData = "DATA Frame Received in the wrong state of: IDLE".getBytes();
-        FrameGoAway errorFrame = new FrameGoAway(0, debugData, PROTOCOL_ERROR, 1, false);
-        h2Client.addExpectedFrame(errorFrame);
         h2Client.sendFrame(data);
 
         blockUntilConnectionIsDone.await();
@@ -70,7 +72,6 @@ public class DataFrameTests extends H2FATDriverServlet {
         String testName = "testZeroLengthPadding";
 
         Http2Client h2Client = getDefaultH2Client(request, response, blockUntilConnectionIsDone);
-        setupDefaultPreface(h2Client);
 
         List<H2HeaderField> secondHeadersReceived = new ArrayList<H2HeaderField>();
         secondHeadersReceived.add(new H2HeaderField(":status", "200"));
@@ -83,6 +84,9 @@ public class DataFrameTests extends H2FATDriverServlet {
         secondFrameHeaders.setHeaderFields(secondHeadersReceived);
         h2Client.addExpectedFrame(secondFrameHeaders);
         h2Client.addExpectedFrame(new FrameData(3, dataString.getBytes(), 0, false, false, false));
+
+        // Initialize connection after adding expected frames
+        setupDefaultPreface(h2Client);
 
         List<HeaderEntry> firstHeadersToSend = new ArrayList<HeaderEntry>();
         firstHeadersToSend.add(new HeaderEntry(new H2HeaderField(":method", "GET"), HpackConstants.LiteralIndexType.NEVERINDEX, false));
@@ -116,7 +120,15 @@ public class DataFrameTests extends H2FATDriverServlet {
         String testName = "testInvalidPaddingValue";
 
         Http2Client h2Client = getDefaultH2Client(request, response, blockUntilConnectionIsDone);
+
+        // Add expected goaway before the init sequence.
+        byte[] debugData = "Error processing the payload for DATA frame on stream 5".getBytes();
+        FrameGoAway errorFrame = new FrameGoAway(0, debugData, PROTOCOL_ERROR, 1, false);
+        h2Client.addExpectedFrame(errorFrame);
+
         FrameHeaders headers = setupDefaultPreface(h2Client);
+
+        h2Client.addExpectedFrame(headers);
 
         List<HeaderEntry> firstHeadersToSend = new ArrayList<HeaderEntry>();
         firstHeadersToSend.add(new HeaderEntry(new H2HeaderField(":method", "GET"), HpackConstants.LiteralIndexType.NEVERINDEX, false));
@@ -129,9 +141,6 @@ public class DataFrameTests extends H2FATDriverServlet {
 
         byte[] dataBytes = hexStringToByteArray("0000050009000000050654657374");
 
-        byte[] debugData = "Error processing the payload for DATA frame on stream 5".getBytes();
-        FrameGoAway errorFrame = new FrameGoAway(0, debugData, PROTOCOL_ERROR, 1, false);
-        h2Client.addExpectedFrame(errorFrame);
         h2Client.waitFor(headers);
         h2Client.sendFrame(frameHeadersToSend);
         h2Client.sendBytes(dataBytes);
@@ -149,7 +158,14 @@ public class DataFrameTests extends H2FATDriverServlet {
         CountDownLatch blockUntilConnectionIsDone = new CountDownLatch(1);
         String testName = "testDataFrameExceedingMaxFrameSize";
         Http2Client h2Client = getDefaultH2Client(request, response, blockUntilConnectionIsDone);
+
+        int ERROR_CODE = 0x6; // FRAME_SIZE_ERROR
+        byte[] debugData = "DATA payload greater than allowed by the max frame size".getBytes();
+        FrameGoAway errorFrame = new FrameGoAway(0, debugData, ERROR_CODE, 1, false);
+        h2Client.addExpectedFrame(errorFrame);
+
         FrameHeaders headers = setupDefaultPreface(h2Client);
+        h2Client.addExpectedFrame(headers);
 
         List<HeaderEntry> firstHeadersToSend = new ArrayList<HeaderEntry>();
         firstHeadersToSend.add(new HeaderEntry(new H2HeaderField(":method", "GET"), HpackConstants.LiteralIndexType.NEVERINDEX, false));
@@ -160,16 +176,12 @@ public class DataFrameTests extends H2FATDriverServlet {
         FrameHeadersClient frameHeadersToSend = new FrameHeadersClient(5, null, 0, 0, 0, false, true, false, false, false, false);
         frameHeadersToSend.setHeaderEntries(firstHeadersToSend);
 
-        byte[] data = new byte[33000];
+        byte[] data = new byte[57345];
         for (int i = 0; i < data.length; i++) {
             data[i] = 0x01;
         }
         FrameData dataFrame = new FrameData(5, data, 255, true, true, false);
 
-        int ERROR_CODE = 0x6; // FRAME_SIZE_ERROR
-        byte[] debugData = "DATA payload greater than allowed by the max frame size".getBytes();
-        FrameGoAway errorFrame = new FrameGoAway(0, debugData, ERROR_CODE, 1, false);
-        h2Client.addExpectedFrame(errorFrame);
         h2Client.waitFor(headers);
         h2Client.sendFrame(frameHeadersToSend);
 

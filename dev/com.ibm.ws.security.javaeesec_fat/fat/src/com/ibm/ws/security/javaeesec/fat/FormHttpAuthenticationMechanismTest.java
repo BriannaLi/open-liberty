@@ -58,12 +58,11 @@ import componenttest.topology.impl.LibertyServerFactory;
  * values for getAuthType, getUserPrincipal and getRemoteUser after JASPI authentication.
  *
  */
-@MinimumJavaLevel(javaLevel = 1.8)
+@MinimumJavaLevel(javaLevel = 8)
 @RunWith(FATRunner.class)
 @Mode(TestMode.FULL)
 public class FormHttpAuthenticationMechanismTest extends JavaEESecTestBase {
 
-    private static final String COOKIE_NAME = "jaspicSession";
     private static final String JAR_NAME = "JavaEESecBase.jar";
 
     private static LibertyServer myServer = LibertyServerFactory.getLibertyServer("com.ibm.ws.security.javaeesec.fat");
@@ -96,10 +95,10 @@ public class FormHttpAuthenticationMechanismTest extends JavaEESecTestBase {
 
     @AfterClass
     public static void tearDownAfterClass() throws Exception {
+        myServer.stopServer();
         if (ldapServer != null) {
             ldapServer.stop();
         }
-        myServer.stopServer();
     }
 
     @SuppressWarnings("restriction")
@@ -141,7 +140,6 @@ public class FormHttpAuthenticationMechanismTest extends JavaEESecTestBase {
      * <LI> Servlet is accessed and it prints information about the subject: getAuthType, getUserPrincipal, getRemoteUser.
      * </OL>
      */
-    @Mode(TestMode.LITE)
     @Test
     public void testJaspiFormLoginValidUserInRole_AllowedAccess() throws Exception {
         myServer.setMarkToEndOfLog();
@@ -165,7 +163,6 @@ public class FormHttpAuthenticationMechanismTest extends JavaEESecTestBase {
      * <LI> Servlet is accessed and it prints information about the subject: getAuthType, getUserPrincipal, getRemoteUser.
      * </OL>
      */
-    @Mode(TestMode.LITE)
     @Test
     public void testJaspiFormLoginValidUserInRoleRedirect_AllowedAccess() throws Exception {
         myServer.setMarkToEndOfLog();
@@ -174,35 +171,4 @@ public class FormHttpAuthenticationMechanismTest extends JavaEESecTestBase {
                                                      LocalLdapServer.USER1, LocalLdapServer.PASSWORD, HttpServletResponse.SC_OK);
         verifyUserResponse(response, Constants.getUserPrincipalFound + LocalLdapServer.USER1, Constants.getRemoteUserFound + LocalLdapServer.USER1);
     }
-
-    @Mode(TestMode.LITE)
-    @Test
-    public void testSSOForFormAuthenticationMechanismDefinition() throws Exception {
-        String cookieHeaderString = driveResourceFlow(urlHttps + Constants.DEFAULT_REDIRECT_FORM_LOGIN_PAGE);
-        assertCookie(cookieHeaderString, false, true);
-        String response = redriveFlowWithCookieOnly(urlHttps + Constants.DEFAULT_REDIRECT_FORM_LOGIN_PAGE, HttpServletResponse.SC_OK);
-        verifyUserResponse(response, Constants.getUserPrincipalFound + LocalLdapServer.USER1, Constants.getRemoteUserFound + LocalLdapServer.USER1);
-    }
-
-    private String driveResourceFlow(String resource) throws Exception, IOException {
-        HttpResponse httpResponse = executeGetRequestFormCreds(httpclient, resource, true, urlHttps + "/JavaEEsecFormAuthRedirect/login.jsp",
-                                                               "login page for the form login test", urlHttps + "/JavaEEsecFormAuthRedirect/j_security_check",
-                                                               LocalLdapServer.USER1, LocalLdapServer.PASSWORD);
-        String response = processResponse(httpResponse, HttpServletResponse.SC_OK);
-        verifyUserResponse(response, Constants.getUserPrincipalFound + LocalLdapServer.USER1, Constants.getRemoteUserFound + LocalLdapServer.USER1);
-        Header cookieHeader = getCookieHeader(httpResponse, COOKIE_NAME);
-        return cookieHeader.toString();
-    }
-
-    private void assertCookie(String cookieHeaderString, boolean secure, boolean httpOnly) {
-        assertTrue("The Path parameter must be set.", cookieHeaderString.contains("Path=/"));
-        assertEquals("The Secure parameter must" + (secure == true ? "" : " not" + " be set."), secure, cookieHeaderString.contains("Secure"));
-        assertEquals("The HttpOnly parameter must" + (httpOnly == true ? "" : " not" + " be set."), httpOnly, cookieHeaderString.contains("HttpOnly"));
-    }
-
-    private String redriveFlowWithCookieOnly(String resource, int expectedStatusCode) throws Exception {
-        httpclient.getCredentialsProvider().clear();
-        return executeGetRequestNoAuthCreds(httpclient, resource, expectedStatusCode);
-    }
-
 }

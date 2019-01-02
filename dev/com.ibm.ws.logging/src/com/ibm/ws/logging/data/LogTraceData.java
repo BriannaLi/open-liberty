@@ -10,12 +10,23 @@
  *******************************************************************************/
 package com.ibm.ws.logging.data;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import com.ibm.ws.logging.collector.LogFieldConstants;
+import com.ibm.ws.logging.utils.SequenceNumber;
 
 /**
  *
  */
 public class LogTraceData extends GenericData {
+
+    static Pattern messagePattern;
+    private long rawSequenceNumber = -1;
+
+    static {
+        messagePattern = Pattern.compile("^([A-Z][\\dA-Z]{3,4})(\\d{4})([A-Z])(:)");
+    }
 
     private final static String[] NAMES1_1 = {
                                                LogFieldConstants.IBM_DATETIME,
@@ -81,23 +92,8 @@ public class LogTraceData extends GenericData {
         setPair(index, NAMES1_1[index], l);
     }
 
-    private String getStringValue(int index) {
-        KeyValueStringPair kvp = (KeyValueStringPair) getPairs().get(index);
-        return kvp.getStringValue();
-    }
-
-    private int getIntValue(int index) {
-        KeyValueIntegerPair kvp = (KeyValueIntegerPair) getPairs().get(index);
-        return kvp.getIntValue();
-    }
-
-    private long getLongValue(int index) {
-        KeyValueLongPair kvp = (KeyValueLongPair) getPairs().get(index);
-        return kvp.getLongValue();
-    }
-
     private KeyValuePairList getValues(int index) {
-        return (KeyValuePairList) getPairs().get(index);
+        return (KeyValuePairList) getPairs()[index];
     }
 
     public void setDatetime(long l) {
@@ -357,7 +353,15 @@ public class LogTraceData extends GenericData {
     }
 
     public String getMessageId() {
-        return getStringValue(1);
+        String messageId = getStringValue(1);
+        if (messageId == null || messageId.isEmpty()) {
+            String message = getMessage();
+            if (message != null) {
+                messageId = parseMessageId(message);
+                this.setPair(1, NAMES1_1[1], messageId);
+            }
+        }
+        return messageId;
     }
 
     public int getThreadId() {
@@ -409,7 +413,12 @@ public class LogTraceData extends GenericData {
     }
 
     public String getSequence() {
-        return getStringValue(14);
+        String sequenceId = getStringValue(14);
+        if (sequenceId == null || sequenceId.isEmpty()) {
+            sequenceId = SequenceNumber.formatSequenceNumber(getDatetime(), rawSequenceNumber);
+            this.setPair(14, NAMES1_1[14], sequenceId);
+        }
+        return sequenceId;
     }
 
     public String getThrowable() {
@@ -434,6 +443,25 @@ public class LogTraceData extends GenericData {
 
     public int getObjectId() {
         return getIntValue(20);
+    }
+
+    public void setRawSequenceNumber(long l) {
+        rawSequenceNumber = l;
+    }
+
+    public long getRawSequenceNumber(long l) {
+        return rawSequenceNumber;
+    }
+
+    /**
+     * @return the message ID for the given message.
+     */
+    protected String parseMessageId(String msg) {
+        String messageId = null;
+        Matcher matcher = messagePattern.matcher(msg);
+        if (matcher.find())
+            messageId = msg.substring(matcher.start(), matcher.end() - 1);
+        return messageId;
     }
 
 }

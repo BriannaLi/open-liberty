@@ -9,6 +9,7 @@
  *     IBM Corporation - initial API and implementation
  *******************************************************************************/
 
+
 // Define Group:ArtifactId:Version coordinates of each dependency
 dependencies {
   requiredLibs 'javax:javaee-api:7.0'

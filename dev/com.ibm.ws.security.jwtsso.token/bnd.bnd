@@ -17,13 +17,16 @@ Bundle-Description: Security JWT SSO token utility service, version=${bVersion}
 Bundle-ActivationPolicy: lazy
 
 WS-TraceGroup: \
-  Security
+  JWTSSOTOKEN
 																																																															
 Export-Package: com.ibm.ws.security.jwtsso.token
 
 Import-Package: !*.internal.*, \
   org.eclipse.microprofile.jwt, \
   *
+  
+Private-Package: \
+  com.ibm.ws.security.jwtsso.token.resources
    
 -dsannotations: \
   com.ibm.ws.security.jwtsso.token.JwtSSOTokenImpl, \
@@ -39,6 +42,7 @@ Import-Package: !*.internal.*, \
 	com.ibm.websphere.org.eclipse.microprofile.jwt.1.0;version=latest, \
 	com.ibm.wsspi.org.osgi.service.component.annotations;version=latest, \
 	com.ibm.ws.org.osgi.annotation.versioning;version=latest, \
+	com.ibm.ws.security.authentication.tai;version=latest,\
 	com.ibm.ws.security.credentials;version=latest, \
     com.ibm.ws.security.common;version=latest, \
     com.ibm.ws.security.jwt;version=latest, \
@@ -50,7 +54,7 @@ Import-Package: !*.internal.*, \
     ../build.sharedResources/lib/junit/old/junit.jar;version=file, \
     com.ibm.ws.junit.extensions;version=latest, \
     org.jmock:jmock-legacy;version=2.5.0, \
-    cglib:cglib-nodep;version=2.1.0.3, \
+    cglib:cglib-nodep;version=3.2.7, \
     org.hamcrest:hamcrest-all;version=1.3, \
     org.jmock:jmock-junit4;strategy=exact;version=2.5.1, \
     org.jmock:jmock;strategy=exact;version=2.5.1, \
@@ -58,4 +62,7 @@ Import-Package: !*.internal.*, \
     com.ibm.ws.logging;version=latest, \
     com.ibm.ws.kernel.boot;version=latest, \
     com.ibm.ws.kernel.service;version=latest, \
+    com.ibm.ws.org.jose4j.0.5.1;version=latest, \
+    com.ibm.ws.org.apache.commons.codec.1.4;version=latest, \
+    com.ibm.websphere.javaee.jsonp.1.0;version=latest, \
     com.ibm.websphere.org.eclipse.microprofile.jwt.1.0;version=latest

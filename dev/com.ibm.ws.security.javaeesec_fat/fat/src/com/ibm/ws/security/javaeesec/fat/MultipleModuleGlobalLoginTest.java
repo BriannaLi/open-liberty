@@ -41,13 +41,13 @@ import componenttest.custom.junit.runner.Mode.TestMode;
 import componenttest.topology.impl.LibertyServer;
 import componenttest.topology.impl.LibertyServerFactory;
 
-@MinimumJavaLevel(javaLevel = 1.8, runSyntheticTest = false)
+@MinimumJavaLevel(javaLevel = 8, runSyntheticTest = false)
 @RunWith(FATRunner.class)
 @Mode(TestMode.FULL)
 public class MultipleModuleGlobalLoginTest extends JavaEESecTestBase {
 
     protected static LibertyServer myServer = LibertyServerFactory.getLibertyServer("com.ibm.ws.security.javaeesec.fat");
-    protected static Class<?> logClass = MultipleModuleTest.class;
+    protected static Class<?> logClass = MultipleModuleGlobalLoginTest.class;
     protected static String urlBase;
     protected static String TEMP_DIR = "test_temp";
     protected static String JAR_NAME = "JavaEESecBase.jar";
@@ -61,6 +61,7 @@ public class MultipleModuleGlobalLoginTest extends JavaEESecTestBase {
     protected static String WAR2_NAME = MODULE2_NAME + ".war";
     protected static String MODULE2CUSTOM_NAME = "JavaEESecMultipleISCustomForm";
     protected static String WAR2CUSTOM_NAME = MODULE2CUSTOM_NAME + ".war";
+    protected static String XML_BASE_NAME = "multipleModuleBase.xml";
     protected static String XML_FORM_NAME = "multipleModuleGlobalForm.xml";
     protected static String XML_NO_ROOT_CONTEXT_NAME = "multipleModuleGlobalFormNoContext.xml";
     protected static String XML_BASIC_AUTH_NAME = "multipleModule2ExpandGlobalBasic.xml";
@@ -126,15 +127,18 @@ public class MultipleModuleGlobalLoginTest extends JavaEESecTestBase {
 
         ldapServer = new LocalLdapServer();
         ldapServer.start();
+
+        myServer.setServerConfigurationFile(XML_BASE_NAME);
+        myServer.startServer(true);
+        urlBase = "http://" + myServer.getHostname() + ":" + myServer.getHttpDefaultPort();
     }
 
     @AfterClass
     public static void tearDown() throws Exception {
+        myServer.stopServer();
         if (ldapServer != null) {
             ldapServer.stop();
         }
-        myServer.stopServer();
-        myServer.setServerConfigurationFile("server.xml");
     }
 
     @Before
@@ -149,19 +153,11 @@ public class MultipleModuleGlobalLoginTest extends JavaEESecTestBase {
     @After
     public void cleanupConnection() throws Exception {
         httpclient.getConnectionManager().shutdown();
-        myServer.stopServer();
     }
 
     @Override
     protected String getCurrentTestName() {
         return name.getMethodName();
-    }
-
-    protected void startServer(String config, String appName) throws Exception {
-        myServer.setServerConfigurationFile(config);
-        myServer.startServer(true);
-        myServer.addInstalledAppForValidation(appName);
-        urlBase = "http://" + myServer.getHostname() + ":" + myServer.getHttpDefaultPort();
     }
 
     /**
@@ -179,7 +175,6 @@ public class MultipleModuleGlobalLoginTest extends JavaEESecTestBase {
      * <LI> Verify that the container provided HAM is used.
      * </OL>
      */
-    @Mode(TestMode.LITE)
     @Test
     public void testMultipleModuleWarsOverrideFormHAM() throws Exception {
         Log.info(logClass, getCurrentTestName(), "-----Entering " + getCurrentTestName());
@@ -198,9 +193,16 @@ public class MultipleModuleGlobalLoginTest extends JavaEESecTestBase {
         // create global form war.
         WCApplicationHelper.addWarToServerApps(myServer, GLOBAL_LOGIN_WAR, true, null, false);
 
-        startServer(XML_FORM_NAME, APP_NAME);
+        myServer.setServerConfigurationFile(XML_FORM_NAME);
+        myServer.addInstalledAppForValidation(APP_NAME);
+        myServer.addInstalledAppForValidation(GLOBAL_LOGIN_WAR);
+
         runMultipulModuleFormScenario();
+
+        myServer.setMarkToEndOfLog();
+        myServer.setServerConfigurationFile(XML_BASE_NAME);
         myServer.removeInstalledAppForValidation(APP_NAME);
+        myServer.removeInstalledAppForValidation(GLOBAL_LOGIN_WAR);
         Log.info(logClass, getCurrentTestName(), "-----Exiting " + getCurrentTestName());
     }
 
@@ -220,7 +222,6 @@ public class MultipleModuleGlobalLoginTest extends JavaEESecTestBase {
      * <LI> Verify that the container provided HAM is used.
      * </OL>
      */
-    @Mode(TestMode.LITE)
     @Test
     public void testMultipleModuleWarsOverrideFormHAMNoRootContext() throws Exception {
         Log.info(logClass, getCurrentTestName(), "-----Entering " + getCurrentTestName());
@@ -239,9 +240,16 @@ public class MultipleModuleGlobalLoginTest extends JavaEESecTestBase {
         // create global form war.
         WCApplicationHelper.addWarToServerApps(myServer, GLOBAL_LOGIN_WAR, true, null, false);
 
-        startServer(XML_NO_ROOT_CONTEXT_NAME, APP_NAME);
+        myServer.setServerConfigurationFile(XML_NO_ROOT_CONTEXT_NAME);
+        myServer.addInstalledAppForValidation(APP_NAME);
+        myServer.addInstalledAppForValidation(GLOBAL_LOGIN_WAR);
+
         runMultipulModuleFormScenario();
+
+        myServer.setMarkToEndOfLog();
+        myServer.setServerConfigurationFile(XML_BASE_NAME);
         myServer.removeInstalledAppForValidation(APP_NAME);
+        myServer.removeInstalledAppForValidation(GLOBAL_LOGIN_WAR);
         Log.info(logClass, getCurrentTestName(), "-----Exiting " + getCurrentTestName());
     }
 
@@ -260,7 +268,6 @@ public class MultipleModuleGlobalLoginTest extends JavaEESecTestBase {
      * <LI> Verify that the container provided HAM is used.
      * </OL>
      */
-    @Mode(TestMode.LITE)
     @Test
     public void testMultipleModuleWarsOverrideBasicAuthHAM() throws Exception {
         Log.info(logClass, getCurrentTestName(), "-----Entering " + getCurrentTestName());
@@ -276,8 +283,13 @@ public class MultipleModuleGlobalLoginTest extends JavaEESecTestBase {
         WCApplicationHelper.packageWarsToEar(myServer, TEMP_DIR, EAR_NAME, true, WAR1_NAME, WAR2CUSTOM_NAME);
         WCApplicationHelper.addEarToServerApps(myServer, TEMP_DIR, EAR_NAME);
 
-        startServer(XML_BASIC_AUTH_NAME, APP_NAME);
+        myServer.setServerConfigurationFile(XML_BASIC_AUTH_NAME);
+        myServer.addInstalledAppForValidation(APP_NAME);
+
         runMultipulModuleBasicAuthScenario();
+
+        myServer.setMarkToEndOfLog();
+        myServer.setServerConfigurationFile(XML_BASE_NAME);
         myServer.removeInstalledAppForValidation(APP_NAME);
         Log.info(logClass, getCurrentTestName(), "-----Exiting " + getCurrentTestName());
     }

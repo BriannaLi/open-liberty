@@ -10,6 +10,7 @@
  *******************************************************************************/
 package com.ibm.websphere.security.audit;
 
+import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Collections;
 import java.util.Date;
@@ -34,6 +35,7 @@ public class AuditEvent {
     public final static String EVENTNAME = "eventName";
     public final static String EVENTTYPE = "eventType";
     public final static String EVENTTIME = "eventTime";
+    public final static String LOGGING_EVENTTIME = "loggingEventTime";
     public final static String WASEVENTTYPE = "wasEventType";
     public final static String HASHTAG = "hashTag";
 
@@ -62,6 +64,7 @@ public class AuditEvent {
     public final static String TARGET_MESSAGING_OPERATIONTYPE = "target.messaging.operationType";
     public final static String TARGET_MESSAGING_CALLTYPE = "target.messaging.callType";
     public final static String TARGET_MESSAGING_JMS_RESOURCE = "target.messaging.jmsResource";
+    public final static String TARGET_MESSAGING_JMS_ACTIONS = "target.messaging.jmsActions";
     public final static String TARGET_MESSAGING_JMS_ROLES = "target.messaging.jmsRoles";
     public final static String TARGET_MESSAGING_JMS_REQUESTOR_TYPE = "target.messaging.jmsRequestorType";
     public final static String TARGET_MESSAGING_JMS_QUEUE_PERMISSIONS = "target.messaging.queuePermissions";
@@ -152,7 +155,7 @@ public class AuditEvent {
     public static final String REASON_TYPE_MISSING_REPOSITORIES_FOR_GROUPS_CONFIGURATION = "Repository for groups is missing or indicates groups are in cross repositories"; // 207
     public static final String REASON_TYPE_ENTITY_TYPE_NOT_SUPPORTED = "Entity type not supported"; // 208
     public static final String REASON_TYPE_CANNOT_WRITE_TO_READ_ONLY_REPOSITORY = "Cannot write to read only repository"; // 209
-    public static final String REASON_TYPE_EXTERNAL_NAME_CONTROL_NOT_FOUND = ""; // 210
+    public static final String REASON_TYPE_EXTERNAL_NAME_CONTROL_NOT_FOUND = "External name control not found"; // 210
     public static final String REASON_TYPE_INVALID_IDENTIFIER = "Invalid identifier"; // 211
     public static final String REASON_TYPE_ENTITY_NOT_FOUND = "Entity not found"; // 212
     public static final String REASON_TYPE_MISSING_SORT_KEY = "Missing sort key"; // 213
@@ -231,9 +234,13 @@ public class AuditEvent {
      * @return current time in yyyy-MM-dd HH:mm:ss.SSS format
      */
     public String getCurrentTime() {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
-        String strDate = sdf.format(new Date());
-        return strDate;
+
+        //TimeZone tz = TimeZone.getTimeZone("UTC");
+        DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ"); // Quoted "Z" to indicate UTC, no timezone offset
+        //df.setTimeZone(tz);
+        String nowAsISO = df.format(new Date());
+
+        return nowAsISO;
     }
 
     /**

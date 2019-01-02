@@ -36,7 +36,7 @@ import componenttest.custom.junit.runner.Mode.TestMode;
 import componenttest.topology.impl.LibertyServer;
 import componenttest.topology.impl.LibertyServerFactory;
 
-@MinimumJavaLevel(javaLevel = 1.8, runSyntheticTest = false)
+@MinimumJavaLevel(javaLevel = 8, runSyntheticTest = false)
 @RunWith(FATRunner.class)
 @Mode(TestMode.FULL)
 public class MultipleIdentityStoreApplCustomTest extends JavaEESecTestBase {
@@ -79,12 +79,10 @@ public class MultipleIdentityStoreApplCustomTest extends JavaEESecTestBase {
 
     @AfterClass
     public static void tearDown() throws Exception {
+        myServer.stopServer();
         if (ldapServer != null) {
             ldapServer.stop();
         }
-        myServer.stopServer();
-        myServer.setServerConfigurationFile("server.xml");
-
     }
 
     @Before
@@ -116,7 +114,6 @@ public class MultipleIdentityStoreApplCustomTest extends JavaEESecTestBase {
      * <LI> Veirfy the list of groups does not contain the group name of 2nd identitystore.
      * </OL>
      */
-    @Mode(TestMode.LITE)
     @Test
     public void testMultipleISApplCustomWith1stIS_AllowedAccess() throws Exception {
         Log.info(logClass, getCurrentTestName(), "-----Entering " + getCurrentTestName());
@@ -143,7 +140,6 @@ public class MultipleIdentityStoreApplCustomTest extends JavaEESecTestBase {
      * <LI> Veirfy the list of groups does not contain the group name of 1st identitystore.
      * </OL>
      */
-    @Mode(TestMode.LITE)
     @Test
     public void testMultipleISApplCustomWith2ndISonly_AllowedAccess() throws Exception {
         Log.info(logClass, getCurrentTestName(), "-----Entering " + getCurrentTestName());
@@ -170,7 +166,6 @@ public class MultipleIdentityStoreApplCustomTest extends JavaEESecTestBase {
      * <LI> Veirfy the list of groups does not contain the group name of 1st identitystore.
      * </OL>
      */
-    @Mode(TestMode.FULL)
     @AllowedFFDC({ "javax.naming.AuthenticationException" })
     @Test
     public void testMultipleISApplCustomWith1stISfail2ndISsuccess_AllowedAccess() throws Exception {
@@ -195,7 +190,6 @@ public class MultipleIdentityStoreApplCustomTest extends JavaEESecTestBase {
      * <LI> Veirfy the CWWKS9104A message is logged.
      * </OL>
      */
-    @Mode(TestMode.LITE)
     @Test
     public void testMultipleISApplCustomNoCred_DeniedAccess() throws Exception {
         Log.info(logClass, getCurrentTestName(), "-----Entering " + getCurrentTestName());
@@ -214,7 +208,6 @@ public class MultipleIdentityStoreApplCustomTest extends JavaEESecTestBase {
      * <LI> Veirfy the CWWKS9104A message is logged.
      * </OL>
      */
-    @Mode(TestMode.LITE)
     @Test
     public void testMultipleISApplCustomWith1stISuccess_DeniedAccess() throws Exception {
         Log.info(logClass, getCurrentTestName(), "-----Entering " + getCurrentTestName());
@@ -236,7 +229,6 @@ public class MultipleIdentityStoreApplCustomTest extends JavaEESecTestBase {
      * <LI> Veirfy the CWWKS1652A message is logged.
      * </OL>
      */
-    @Mode(TestMode.FULL)
     @AllowedFFDC({ "javax.naming.AuthenticationException" })
     @Test
     public void testMultipleISApplCustomWith1st2ndFail_DeniedAccess() throws Exception {

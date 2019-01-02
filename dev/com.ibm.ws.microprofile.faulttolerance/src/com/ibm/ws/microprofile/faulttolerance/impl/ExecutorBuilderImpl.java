@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2017 IBM Corporation and others.
+ * Copyright (c) 2017,2018 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -20,21 +20,24 @@ import com.ibm.ws.microprofile.faulttolerance.spi.CircuitBreakerPolicy;
 import com.ibm.ws.microprofile.faulttolerance.spi.Executor;
 import com.ibm.ws.microprofile.faulttolerance.spi.ExecutorBuilder;
 import com.ibm.ws.microprofile.faulttolerance.spi.FallbackPolicy;
+import com.ibm.ws.microprofile.faulttolerance.spi.MetricRecorder;
 import com.ibm.ws.microprofile.faulttolerance.spi.RetryPolicy;
 import com.ibm.ws.microprofile.faulttolerance.spi.TimeoutPolicy;
+import com.ibm.ws.microprofile.faulttolerance.utils.DummyMetricRecorder;
 import com.ibm.ws.threading.PolicyExecutorProvider;
 import com.ibm.wsspi.threadcontext.WSContextService;
 
 public class ExecutorBuilderImpl<T, R> implements ExecutorBuilder<T, R> {
 
-    private CircuitBreakerPolicy circuitBreakerPolicy = null;
-    private RetryPolicy retryPolicy = null;
-    private BulkheadPolicy bulkheadPolicy = null;
-    private FallbackPolicy fallbackPolicy = null;
-    private TimeoutPolicy timeoutPolicy = null;
+    protected CircuitBreakerPolicy circuitBreakerPolicy = null;
+    protected RetryPolicy retryPolicy = null;
+    protected BulkheadPolicy bulkheadPolicy = null;
+    protected FallbackPolicy fallbackPolicy = null;
+    protected TimeoutPolicy timeoutPolicy = null;
+    protected MetricRecorder metricRecorder = DummyMetricRecorder.get();
     private final WSContextService contextService;
-    private final PolicyExecutorProvider policyExecutorProvider;
-    private final ScheduledExecutorService scheduledExecutorService;
+    protected final PolicyExecutorProvider policyExecutorProvider;
+    protected final ScheduledExecutorService scheduledExecutorService;
 
     public ExecutorBuilderImpl(WSContextService contextService, PolicyExecutorProvider policyExecutorProvider, ScheduledExecutorService scheduledExecutorService) {
         this.contextService = contextService;
@@ -79,18 +82,28 @@ public class ExecutorBuilderImpl<T, R> implements ExecutorBuilder<T, R> {
 
     /** {@inheritDoc} */
     @Override
-    public Executor<R> build() {
-        Executor<R> executor = new SynchronousExecutorImpl<R>(this.retryPolicy, this.circuitBreakerPolicy, this.timeoutPolicy, this.bulkheadPolicy, this.fallbackPolicy, this.scheduledExecutorService);
-
-        return executor;
+    public ExecutorBuilder<T, R> setMetricRecorder(MetricRecorder metricRecorder) {
+        this.metricRecorder = metricRecorder;
+        return this;
     }
 
     /** {@inheritDoc} */
     @Override
-    public Executor<Future<R>> buildAsync() {
-        Executor<Future<R>> executor = new AsyncOuterExecutorImpl<R>(this.retryPolicy, this.circuitBreakerPolicy, this.timeoutPolicy, this.bulkheadPolicy, this.fallbackPolicy, this.contextService, this.policyExecutorProvider, this.scheduledExecutorService);
+    public Executor<R> build() {
+        Executor<R> executor = new SynchronousExecutorImpl<R>(this.retryPolicy, this.circuitBreakerPolicy, this.timeoutPolicy, this.bulkheadPolicy, this.fallbackPolicy, this.scheduledExecutorService, this.metricRecorder);
 
         return executor;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <W> Executor<W> buildAsync(Class<?> asyncResultWrapperType) {
+        if (asyncResultWrapperType == Future.class) {
+            Executor<Future<R>> executor = new AsyncOuterExecutorImpl<R>(this.retryPolicy, this.circuitBreakerPolicy, this.timeoutPolicy, this.bulkheadPolicy, this.fallbackPolicy, this.contextService, this.policyExecutorProvider, this.scheduledExecutorService, this.metricRecorder);
+            return (Executor<W>) executor;
+        } else {
+            throw new IllegalArgumentException("Invalid return type for async execution: " + asyncResultWrapperType);
+        }
     }
 
 }

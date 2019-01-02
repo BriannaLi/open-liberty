@@ -30,6 +30,7 @@ import com.ibm.ws.container.service.app.deploy.extended.ExtendedModuleInfo;
 import com.ibm.ws.container.service.app.deploy.extended.ModuleRuntimeContainer;
 import com.ibm.ws.container.service.metadata.MetaDataException;
 import com.ibm.ws.container.service.state.StateChangeException;
+import com.ibm.ws.kernel.LibertyProcess;
 import com.ibm.ws.runtime.metadata.ApplicationMetaData;
 import com.ibm.ws.runtime.metadata.ComponentMetaData;
 import com.ibm.ws.runtime.metadata.MetaDataImpl;
@@ -78,6 +79,9 @@ public class SpringBootRuntimeContainer implements ModuleRuntimeContainer {
     @Reference
     private FutureMonitor futureMonitor;
 
+    @Reference
+    private LibertyProcess libertyProcess;
+
     @Override
     public ModuleMetaData createModuleMetaData(ExtendedModuleInfo moduleInfo) throws MetaDataException {
         return new SpringModuleMetaData((SpringBootModuleInfo) moduleInfo);
@@ -94,7 +98,7 @@ public class SpringBootRuntimeContainer implements ModuleRuntimeContainer {
     private void invokeSpringMain(Future<Boolean> mainInvokeResult, SpringBootModuleInfo springBootModuleInfo) {
         final SpringBootApplicationImpl springBootApplication = springBootModuleInfo.getSpringBootApplication();
         final Method main;
-        ClassLoader newTccl = springBootModuleInfo.getClassLoader();
+        ClassLoader newTccl = springBootModuleInfo.getThreadContextClassLoader();
         ClassLoader previousTccl = AccessController.doPrivileged((PrivilegedAction<ClassLoader>) () -> Thread.currentThread().getContextClassLoader());
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             Thread.currentThread().setContextClassLoader(newTccl);
@@ -126,26 +130,17 @@ public class SpringBootRuntimeContainer implements ModuleRuntimeContainer {
             });
             try {
                 // get the application args to pass from the springBootApplication
-                main.invoke(null, new Object[] { springBootApplication.getAppArgs().toArray(new String[0]) });
+                String[] appArgs = libertyProcess.getArgs();
+                if (appArgs.length == 0) {
+                    appArgs = springBootApplication.getAppArgs().toArray(new String[0]);
+                }
+                main.invoke(null, new Object[] { appArgs });
                 futureMonitor.setResult(mainInvokeResult, true);
             } catch (InvocationTargetException e) {
                 Throwable target = e.getTargetException();
                 String msgKey = null;
                 if (target instanceof ApplicationError) {
-                    switch (((ApplicationError) target).getType()) {
-                        case NEED_SPRING_BOOT_VERSION_15:
-                            msgKey = "error.need.springboot.version.15";
-                            break;
-                        case NEED_SPRING_BOOT_VERSION_20:
-                            msgKey = "error.need.springboot.version.20";
-                            break;
-                        case MISSING_SERVLET_FEATURE:
-                            msgKey = "error.missing.servlet";
-                            break;
-                        default:
-                            break;
-
-                    }
+                    msgKey = ((ApplicationError) target).getType().getMessageKey();
                     Tr.error(tc, msgKey);
                     futureMonitor.setResult(mainInvokeResult, target);
                 } else {
@@ -173,6 +168,7 @@ public class SpringBootRuntimeContainer implements ModuleRuntimeContainer {
         SpringBootModuleInfo springBootModuleInfo = (SpringBootModuleInfo) moduleInfo;
         springBootModuleInfo.getSpringBootApplication().unregisterSpringConfigFactory();
         springBootModuleInfo.getSpringBootApplication().callShutdownHooks();
+        springBootModuleInfo.destroyThreadContextClassLoader();
     }
 
 }

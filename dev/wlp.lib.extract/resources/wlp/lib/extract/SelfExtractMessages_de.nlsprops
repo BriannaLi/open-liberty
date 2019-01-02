@@ -240,7 +240,7 @@ patchingNotApplicableNoChange=Es wurde kein Inhalt extrahiert, da keine \u00fcbe
 
 # {0} is the name of the superseded fix and {1} is the name of the superseding fix.
 patchingSkippedSupersededFix=Der Fix {0} wurde durch den Fix {1} ersetzt, der bereits installiert ist.\n\
-\Die Installation von {0} wurde \u00fcbersprungen.
+Die Installation von {0} wurde \u00fcbersprungen.
 
 # {0} is the message from the exception that caused us to be unable to create a parser for reading the XML files
 ifixutils.unable.to.create.parser=Beim Lesen der Informationen zu den vorl\u00e4ufigen Fixes f\u00fcr die aktuelle Installation ist ein Fehler aufgetreten. Ausnahmenachricht: {0}
@@ -272,6 +272,7 @@ RUN_IN_CHILD_JVM_DEBUG=WLP_JAR_DEBUG wurde festgelegt. Der Server wird in einer 
 RUN_IN_CHILD_JVM_JVM_OPTIONS=Die JAR-Datei enth\u00e4lt jvm.options-Dateien. Der Server wird in einer separaten Java Virtual Machine ausgef\u00fchrt.
 RUN_IN_CHILD_JVM_IBM_AGENT_ISSUE=Ein IBM SDK wird ohne die Option -XX:+EnableHCR verwendet. Der Server wird in einer separaten Java Virtual Machine ausgef\u00fchrt.
 RUN_IN_CHILD_JVM_JRE=Es wird eine Java Runtime Environment-Installation verwendet. Der Server wird in einer separaten Java Virtual Machine ausgef\u00fchrt.
+RUN_IN_CHILD_JVM_SET_JAVA_HOME=JAVA_HOME-Umgebungsvariableneinstellung: {0}
 
 # messages for LicenseSelfEctractor
 LICENSE_invalidInstall=Das Verzeichnis {0} ist keine g\u00fcltige Liberty-Installation. Geben Sie das Stammverzeichnis der Liberty-Installation an, f\u00fcr das Sie das Upgrade durchf\u00fchren m\u00f6chten.

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2012, 2014 IBM Corporation and others.
+ * Copyright (c) 2012, 2018 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -38,6 +38,7 @@ import com.ibm.websphere.security.wim.util.PasswordUtil;
 import com.ibm.ws.ffdc.annotation.FFDCIgnore;
 import com.ibm.ws.security.audit.Audit;
 import com.ibm.ws.security.wim.env.ICacheUtil;
+import com.ibm.ws.security.wim.util.AuditConstants;
 import com.ibm.ws.security.wim.util.ControlsHelper;
 import com.ibm.ws.security.wim.util.SchemaConstantsInternal;
 import com.ibm.ws.security.wim.util.SortHandler;
@@ -66,6 +67,7 @@ import com.ibm.wsspi.security.wim.exception.InvalidIdentifierException;
 import com.ibm.wsspi.security.wim.exception.InvalidUniqueIdException;
 import com.ibm.wsspi.security.wim.exception.MaxResultsExceededException;
 import com.ibm.wsspi.security.wim.exception.MissingSearchControlException;
+import com.ibm.wsspi.security.wim.exception.NoUserRepositoriesFoundException;
 import com.ibm.wsspi.security.wim.exception.OperationNotSupportedException;
 import com.ibm.wsspi.security.wim.exception.PasswordCheckFailedException;
 import com.ibm.wsspi.security.wim.exception.SearchControlException;
@@ -215,6 +217,16 @@ public class ProfileManager implements ProfileServiceLite {
     @Trivial
     @FFDCIgnore(WIMException.class)
     private Root genericProfileManagerMethod(String METHODNAME, char METHODTYPE, Root root) throws WIMException {
+
+        if (repositoryManager != null && repositoryManager.getNumberOfRepositoriesVolatile() < 1) {
+            if (repositoryManager.getNumberOfRepositories() < 1) { // double check that we're at 0 repos
+                throw new NoUserRepositoriesFoundException(WIMMessageKey.MISSING_REGISTRY_DEFINITION, Tr.formatMessage(
+                                                                                                                       tc,
+                                                                                                                       WIMMessageKey.MISSING_REGISTRY_DEFINITION,
+                                                                                                                       null));
+            }
+        }
+
         // Please DONOT UPDATE or CHANGE this wrapper.
         // If a need arises, please updated the required method call.
 
@@ -254,15 +266,12 @@ public class ProfileManager implements ProfileServiceLite {
         String METHODNAME = "getImpl(Root inRoot)";
         String targetReposId = null;
         String uniqueName = null;
-        boolean restRequest = true;
 
         if (inRoot == null) {
             return null;
         }
 
         AuditManager auditManager = new AuditManager();
-        if (auditManager.getRESTRequest() == null)
-            restRequest = false;
 
         // for audit reporting purposes, only if we have one repository configured, else we have to rely on a valid parentDN to get to the
         // correct repositoryId
@@ -272,6 +281,8 @@ public class ProfileManager implements ProfileServiceLite {
         if (tc.isDebugEnabled()) {
             Tr.debug(tc, "targetReposID = ", targetReposId);
         }
+        auditManager.setRepositoryId(targetReposId);
+        auditManager.setRequestType(AuditConstants.GET_AUDIT);
 
         String realmName = getRealmName(inRoot);
 
@@ -311,8 +322,9 @@ public class ProfileManager implements ProfileServiceLite {
             IdentifierType identifier = entity.getIdentifier();
 
             if (identifier == null) {
-                if (restRequest)
-                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "get", null, null, getRealmName(inRoot), inRoot, Integer.valueOf("203"));
+                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.GET_AUDIT, targetReposId, null, getRealmName(inRoot),
+                            inRoot,
+                            Integer.valueOf("203"));
 
                 throw new EntityIdentifierNotSpecifiedException(WIMMessageKey.ENTITY_IDENTIFIER_NOT_SPECIFIED, Tr.formatMessage(
                                                                                                                                 tc,
@@ -356,9 +368,9 @@ public class ProfileManager implements ProfileServiceLite {
                         }
                         continue;
                     }
-                    if (restRequest)
-                        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "get", targetReposId, uniqueName, realmName, retRoot,
-                                    Integer.valueOf("210"));
+                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.GET_AUDIT, targetReposId, uniqueName, realmName,
+                                inRoot,
+                                Integer.valueOf("210"));
 
                     throw new WIMApplicationException(WIMMessageKey.EXTERNAL_NAME_CONTROL_NOT_FOUND, Tr.formatMessage(
                                                                                                                       tc,
@@ -366,9 +378,8 @@ public class ProfileManager implements ProfileServiceLite {
                                                                                                                       WIMMessageHelper.generateMsgParms(externalName)));
                 }
 
-                // missing both uniqueId and uniqueName
-                if (restRequest)
-                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "get", targetReposId, uniqueName, realmName, retRoot, Integer.valueOf("211"));
+                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.GET_AUDIT, targetReposId, uniqueName, realmName, inRoot,
+                            Integer.valueOf("211"));
 
                 throw new InvalidIdentifierException(WIMMessageKey.INVALID_IDENTIFIER, Tr.formatMessage(
                                                                                                         tc,
@@ -416,8 +427,8 @@ public class ProfileManager implements ProfileServiceLite {
             realmName = getRealmName(inRoot);
             if (realmName != null && !getConfigManager().isUniqueNameInRealm(uniqueName, realmName) &&
                 UniqueNameHelper.isDN(uniqueName) != null) {
-                if (restRequest)
-                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "get", repositoryId, uniqueName, realmName, inRoot, Integer.valueOf("204"));
+                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.GET_AUDIT, repositoryId, uniqueName, realmName, inRoot,
+                            Integer.valueOf("204"));
 
                 throw new EntityNotInRealmScopeException(WIMMessageKey.ENTITY_NOT_IN_REALM_SCOPE, Tr.formatMessage(
                                                                                                                    tc,
@@ -508,9 +519,9 @@ public class ProfileManager implements ProfileServiceLite {
                     }
                 }
                 if (retSRoot == null) {
-                    if (restRequest)
-                        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "get", targetReposId, uniqueName, realmName, retRoot,
-                                    Integer.valueOf("212"));
+                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.GET_AUDIT, targetReposId, uniqueName, realmName,
+                                inRoot,
+                                Integer.valueOf("212"));
 
                     throw new EntityNotFoundException(WIMMessageKey.ENTITY_NOT_FOUND, Tr.formatMessage(
                                                                                                        tc,
@@ -604,8 +615,8 @@ public class ProfileManager implements ProfileServiceLite {
             }
 
             if (sortKeys == null || sortKeys.size() == 0) {
-                if (restRequest)
-                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "get", targetReposId, uniqueName, realmName, retRoot, Integer.valueOf("213"));
+                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.GET_AUDIT, targetReposId, uniqueName, realmName, inRoot,
+                            Integer.valueOf("213"));
 
                 throw new SortControlException(WIMMessageKey.MISSING_SORT_KEY, Tr.formatMessage(
                                                                                                 tc,
@@ -629,9 +640,8 @@ public class ProfileManager implements ProfileServiceLite {
             context.setValue(failureRepositoryIds);
         }
 
-        if (restRequest)
-            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "get", targetReposId, uniqueName,
-                        realmName = (realmName != null) ? realmName : auditManager.getRealm(), retRoot, Integer.valueOf("200"));
+        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.GET_AUDIT, targetReposId, uniqueName,
+                    realmName != null ? realmName : getRealmNameOrFirstBest(retRoot), retRoot, Integer.valueOf("200"));
 
         return retRoot;
     }
@@ -656,7 +666,6 @@ public class ProfileManager implements ProfileServiceLite {
         String METHODNAME = "searchImpl(Root inRoot)";
         String targetReposId = null;
         String uniqueName = null;
-        boolean restRequest = true;
 
         // boolean firstCall = true;
         List<Entity> mergedEnts = null;
@@ -673,17 +682,23 @@ public class ProfileManager implements ProfileServiceLite {
         Map<String, List<String>> reposSearchBases = new HashMap<String, List<String>>();
 
         AuditManager auditManager = new AuditManager();
-        if (auditManager.getRESTRequest() == null)
-            restRequest = false;
 
         // for audit reporting purposes, only if we have one repository configured, else we have to rely on a valid parentDN to get to the
         // correct repositoryId
-        if (repositoryManager.getNumberOfRepositories() == 1) {
-            targetReposId = repositoryManager.getRepoIds().get(0);
+        if (numOfRepos == 1) {
+            try {
+                targetReposId = repositoryManager.getRepoIds().get(0);
+            } catch (Exception e) {
+                if (tc.isDebugEnabled()) {
+                    Tr.debug(tc, "numOfRepos was " + numOfRepos, e);
+                }
+            }
         }
         if (tc.isDebugEnabled()) {
             Tr.debug(tc, "targetReposID = ", targetReposId);
         }
+        auditManager.setRepositoryId(targetReposId);
+        auditManager.setRequestType(AuditConstants.SEARCH_AUDIT);
 
         List<Entity> entitys = inRoot.getEntities();
         if (entitys != null && !entitys.isEmpty()) {
@@ -740,8 +755,8 @@ public class ProfileManager implements ProfileServiceLite {
             cacheKey = getPageCacheKey(searchControl, sortControl);
 
         if (searchControl == null && pageControl == null) {
-            if (restRequest)
-                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "search", targetReposId, uniqueName, realmName, inRoot, Integer.valueOf("214"));
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.SEARCH_AUDIT, targetReposId, uniqueName, realmName, inRoot,
+                        Integer.valueOf("214"));
 
             throw new MissingSearchControlException(WIMMessageKey.MISSING_SEARCH_CONTROL, Tr.formatMessage(
                                                                                                            tc,
@@ -752,7 +767,7 @@ public class ProfileManager implements ProfileServiceLite {
             startIndex = pageControl.getStartIndex();
 
             PageCacheEntry entry = (PageCacheEntry) pagingSearchCache.get(cacheKey);
-            int size = 0;
+            int numEntities = 0;
 
             Root cachedRootDO = null;
             List<Entity> entities = null;
@@ -761,7 +776,7 @@ public class ProfileManager implements ProfileServiceLite {
                 if (cachedRootDO != null) {
                     entities = cachedRootDO.getEntities();
                     if (entities != null) {
-                        size = entities.size();
+                        numEntities = entities.size();
                     }
                 }
             }
@@ -775,16 +790,25 @@ public class ProfileManager implements ProfileServiceLite {
                 returnDO = new Root();
                 List<Entity> retDOEntities = null;
 
-                if (size > pageSize) {
-                    // Iterate only if startIndex is less than total search result size
-                    if (startIndex < entities.size()) {
-                        retDOEntities = new ArrayList<Entity>();
-                        int loopTo = startIndex + pageSize;
-                        loopTo = (loopTo < entities.size()) ? loopTo : entities.size();
-                        for (int i = startIndex; i < loopTo; i++) {
-                            Entity ent = entities.get(i);
-                            retDOEntities.add(ent);
-                        }
+                /*
+                 * Return all of the entities unless the allowed page size is less than
+                 * the number of returned entities or if the starting index is not 0.
+                 */
+                if (numEntities > pageSize || startIndex > 0) {
+                    /*
+                     * Iterate only if startIndex is less than total search result size.
+                     */
+                    if (startIndex < numEntities) {
+                        /*
+                         * Determine the end of the entities to include in this request.
+                         */
+                        int toIndex = startIndex + pageSize;
+                        toIndex = (toIndex < numEntities) ? toIndex : numEntities;
+
+                        /*
+                         * Copy the range of entities into the entities to return.
+                         */
+                        retDOEntities = entities.subList(startIndex, toIndex);
                     }
                 } else {
                     retDOEntities = entities;
@@ -797,7 +821,7 @@ public class ProfileManager implements ProfileServiceLite {
 
                 PageResponseControl respPageCtrl = new PageResponseControl();
                 returnDO.getControls().add(respPageCtrl);
-                respPageCtrl.setTotalSize(entities.size());
+                respPageCtrl.setTotalSize(numEntities);
             }
 
             unsetExternalId(returnDO);
@@ -836,9 +860,9 @@ public class ProfileManager implements ProfileServiceLite {
             }
             searchLimit = searchControl.getSearchLimit();
             if (searchLimit < 0) {
-                if (restRequest)
-                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "search", targetReposId, uniqueName, realmName, inRoot,
-                                Integer.valueOf("215"));
+                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.SEARCH_AUDIT, targetReposId, uniqueName, realmName,
+                            inRoot,
+                            Integer.valueOf("215"));
 
                 throw new SearchControlException(WIMMessageKey.INCORRECT_SEARCH_LIMIT, Tr.formatMessage(
                                                                                                         tc,
@@ -848,9 +872,9 @@ public class ProfileManager implements ProfileServiceLite {
             long timeLimit = searchControl.getTimeLimit();
 
             if (searchCountLimit > 0 && pageControl != null) {
-                if (restRequest)
-                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "search", targetReposId, uniqueName, realmName, inRoot,
-                                Integer.valueOf("216"));
+                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.SEARCH_AUDIT, targetReposId, uniqueName, realmName,
+                            inRoot,
+                            Integer.valueOf("216"));
 
                 throw new SearchControlException(WIMMessageKey.CANNOT_SPECIFY_COUNT_LIMIT, Tr.formatMessage(
                                                                                                             tc,
@@ -886,9 +910,9 @@ public class ProfileManager implements ProfileServiceLite {
                 String searchExpr = searchControl.getExpression();
                 if (!bFirstChangeSearchCall) {
                     if (searchExpr == null || searchExpr.length() == 0) {
-                        if (restRequest)
-                            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "search", targetReposId, uniqueName, realmName, inRoot,
-                                        Integer.valueOf("217"));
+                        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.SEARCH_AUDIT, targetReposId, uniqueName,
+                                    realmName, inRoot,
+                                    Integer.valueOf("217"));
 
                         throw new SearchControlException(WIMMessageKey.MISSING_SEARCH_EXPRESSION, Tr.formatMessage(
                                                                                                                    tc,
@@ -944,18 +968,18 @@ public class ProfileManager implements ProfileServiceLite {
                             exceptionMessage = anse.getMessage();
                             continue;
                         } catch (ParseException pe) {
-                            if (restRequest)
-                                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "search", targetReposId, uniqueName, realmName, inRoot,
-                                            Integer.valueOf("218"));
+                            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.SEARCH_AUDIT, targetReposId, uniqueName,
+                                        realmName, inRoot,
+                                        Integer.valueOf("218"));
 
                             throw new SearchControlException(WIMMessageKey.SEARCH_EXPRESSION_ERROR, Tr.formatMessage(
                                                                                                                      tc,
                                                                                                                      WIMMessageKey.SEARCH_EXPRESSION_ERROR,
                                                                                                                      WIMMessageHelper.generateMsgParms(pe.getMessage())));
                         } catch (TokenMgrError e) {
-                            if (restRequest)
-                                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "search", targetReposId, uniqueName, realmName, inRoot,
-                                            Integer.valueOf("219"));
+                            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.SEARCH_AUDIT, targetReposId, uniqueName,
+                                        realmName, inRoot,
+                                        Integer.valueOf("219"));
 
                             throw new SearchControlException(WIMMessageKey.INVALID_SEARCH_EXPRESSION, Tr.formatMessage(
                                                                                                                        tc,
@@ -984,9 +1008,9 @@ public class ProfileManager implements ProfileServiceLite {
                 //If the attribute in the search expression is not supported by any repository where search is to be performed,then
                 // SearhControlException is thrown.
                 if (!propFound) {
-                    if (restRequest)
-                        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "search", targetReposId, uniqueName, realmName, inRoot,
-                                    Integer.valueOf("218"));
+                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.SEARCH_AUDIT, targetReposId, uniqueName, realmName,
+                                inRoot,
+                                Integer.valueOf("218"));
 
                     throw new SearchControlException(WIMMessageKey.SEARCH_EXPRESSION_ERROR, Tr.formatMessage(
                                                                                                              tc,
@@ -1062,8 +1086,8 @@ public class ProfileManager implements ProfileServiceLite {
             searchLimit = (getConfigManager().getMaxSearchResults() > searchLimit ? searchLimit : getConfigManager().getMaxSearchResults());
         }
         if (searchLimit > 0 && reEntitySize > searchLimit) {
-            if (restRequest)
-                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "search", targetReposId, uniqueName, realmName, inRoot, Integer.valueOf("220"));
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.SEARCH_AUDIT, targetReposId, uniqueName, realmName, inRoot,
+                        Integer.valueOf("220"));
 
             throw new MaxResultsExceededException(WIMMessageKey.EXCEED_MAX_TOTAL_SEARCH_LIMIT, Tr.formatMessage(
                                                                                                                 tc,
@@ -1112,9 +1136,9 @@ public class ProfileManager implements ProfileServiceLite {
                 }));
             }
             if (sortKeys == null || sortKeys.size() == 0) {
-                if (restRequest)
-                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "search", targetReposId, uniqueName, realmName, inRoot,
-                                Integer.valueOf("213"));
+                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.SEARCH_AUDIT, targetReposId, uniqueName, realmName,
+                            inRoot,
+                            Integer.valueOf("213"));
 
                 throw new SortControlException(WIMMessageKey.MISSING_SORT_KEY, Tr.formatMessage(
                                                                                                 tc,
@@ -1135,21 +1159,29 @@ public class ProfileManager implements ProfileServiceLite {
             if (pagingSearchCache == null) {
                 maxTotalPagingSearchResults = getConfigManager().getPageCacheSize();
                 pagingSearchResultsCacheTimeOut = getConfigManager().getPageCacheTimeOut();
-                pagingSearchCache = FactoryManager.getCacheUtil().initialize(maxTotalPagingSearchResults, maxTotalPagingSearchResults, pagingSearchResultsCacheTimeOut);
+                pagingSearchCache = FactoryManager.getCacheUtil().initialize("PagingSearchCache", maxTotalPagingSearchResults, maxTotalPagingSearchResults,
+                                                                             pagingSearchResultsCacheTimeOut);
             }
             if (pagingSearchCache != null) {
                 Root cachedRootDO = new Root();
 
-                if (reEntitySize > pageSize) {
+                if (reEntitySize > pageSize || startIndex > 0) {
 
-                    // Iterate only if the start index is less than total result size
+                    /*
+                     * Iterate only if the start index is less than total result size
+                     */
                     if (startIndex < returnEntities.size()) {
+                        /*
+                         * Determine the end of the entities to include in this request.
+                         */
+                        int toIndex = startIndex + pageSize;
+                        toIndex = (toIndex < returnEntities.size()) ? toIndex : returnEntities.size();
+
+                        /*
+                         * Copy the range of entities into the entities to return.
+                         */
                         List<Entity> retDOEntities = retRootDO.getEntities();
-                        int loopTo = startIndex + pageSize;
-                        loopTo = (loopTo < returnEntities.size()) ? loopTo : returnEntities.size();
-                        for (int i = startIndex; i < loopTo; i++) {
-                            retDOEntities.add(returnEntities.get(i));
-                        }
+                        retDOEntities.addAll(returnEntities.subList(startIndex, toIndex));
                     }
                 } else {
                     retRootDO.getEntities().addAll(returnEntities);
@@ -1194,16 +1226,15 @@ public class ProfileManager implements ProfileServiceLite {
         if (uniqueName == null) {
             List<Context> ctxs = inRoot.getContexts();
             for (Context c : ctxs) {
-                if (c.getKey() == "useUserFilterForSearch" || c.getKey() == "useGroupFilterForSearch") {
+                if ("useUserFilterForSearch".equals(c.getKey()) || "useGroupFilterForSearch".equals(c.getKey())) {
                     uniqueName = (String) c.getValue();
                 }
             }
         }
 
-        if (restRequest)
-            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "search", targetReposId, uniqueName,
-                        realmName = (realmName != null) ? realmName : auditManager.getRealm(), retRootDO,
-                        Integer.valueOf("200"));
+        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.SEARCH_AUDIT, targetReposId, uniqueName,
+                    realmName != null ? realmName : getRealmNameOrFirstBest(retRootDO), retRootDO,
+                    Integer.valueOf("200"));
 
         return retRootDO;
     }
@@ -1800,7 +1831,7 @@ public class ProfileManager implements ProfileServiceLite {
             if (tc.isDebugEnabled()) {
                 Tr.debug(tc, METHODNAME + " result == null && countedException == 0, certExceptionCount = " + certExceptionCount);
             }
-            if (certExceptionCount == getRepositoryManager().getNumberOfRepositories()) {
+            if (certExceptionCount != 0 && certExceptionCount == getRepositoryManager().getNumberOfRepositories()) {
                 String msg = Tr.formatMessage(tc, WIMMessageKey.AUTHENTICATION_WITH_CERT_NOT_SUPPORTED);
                 throw new CertificateMapNotSupportedException(WIMMessageKey.AUTHENTICATION_WITH_CERT_NOT_SUPPORTED, msg);
             } else {
@@ -1941,6 +1972,9 @@ public class ProfileManager implements ProfileServiceLite {
         String uniqueName = identifier.getUniqueName();
 
         if ((uniqueId == null || uniqueId.length() == 0) && (uniqueName == null || uniqueName.length() == 0)) {
+            AuditManager auditManager = new AuditManager();
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), auditManager.getRequestType(), repositoryId, uniqueName,
+                        auditManager.getRepositoryRealm(), null, Integer.valueOf("211"));
             throw new InvalidIdentifierException(WIMMessageKey.INVALID_IDENTIFIER, Tr.formatMessage(
                                                                                                     tc,
                                                                                                     WIMMessageKey.INVALID_IDENTIFIER,
@@ -2087,6 +2121,7 @@ public class ProfileManager implements ProfileServiceLite {
         }
     }
 
+    @FFDCIgnore(EntityNotFoundException.class)
     private Entity retrieveEntityFromRepository(String repositoryId, IdentifierType identifier, boolean isAllowOperationIfReposDown,
                                                 Set<String> failureRepositoryIds) throws WIMException {
         String METHODNAME = "retrieveEntityFromRepository";
@@ -2104,85 +2139,56 @@ public class ProfileManager implements ProfileServiceLite {
         String uniqueName = identifier.getUniqueName();
 
         if ((uniqueId == null || uniqueId.length() == 0) && (uniqueName == null || uniqueName.length() == 0)) {
+            AuditManager auditManager = new AuditManager();
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), auditManager.getRequestType(), repositoryId, uniqueName,
+                        auditManager.getRepositoryRealm(), null, Integer.valueOf("211"));
             throw new InvalidIdentifierException(WIMMessageKey.INVALID_IDENTIFIER, Tr.formatMessage(
                                                                                                     tc,
                                                                                                     WIMMessageKey.INVALID_IDENTIFIER,
                                                                                                     WIMMessageHelper.generateMsgParms(uniqueId, uniqueName)));
         }
 
-        if (retEntDO == null) {
-            Entity inEntDO = new Entity();
-            root.getEntities().add(inEntDO);
+        try {
+            if (retEntDO == null) {
+                Entity inEntDO = new Entity();
+                root.getEntities().add(inEntDO);
 
-            IdentifierType idDO = new IdentifierType();
-            inEntDO.setIdentifier(idDO);
+                IdentifierType idDO = new IdentifierType();
+                inEntDO.setIdentifier(idDO);
 
-            if (extId != null)
-                idDO.setExternalId(extId);
-            else
-                idDO.setExternalId(uniqueId);
-            idDO.setExternalName(extName);
-            idDO.setUniqueName(uniqueName);
+                if (extId != null)
+                    idDO.setExternalId(extId);
+                else
+                    idDO.setExternalId(uniqueId);
+                idDO.setExternalName(extName);
+                idDO.setUniqueName(uniqueName);
 
-            if (uniqueId != null && repositoryId == null) {
-                List<String> reposIds = getRepositoryManager().getRepoIds();
-                for (int i = 0; (i < reposIds.size() && retEntDO == null); i++) {
-                    String reposId = reposIds.get(i);
-                    try {
-                        Root retRoot = getRepositoryManager().getRepository(reposId).get(root);
-                        if (retRoot != null) {
-                            List<Entity> entList = retRoot.getEntities();
-
-                            if (entList.size() >= 1) {
-                                retEntDO = entList.get(0);
-                            }
-                        }
-                    } catch (EntityNotFoundException e) {
-                        if (tc.isDebugEnabled()) {
-                            Tr.debug(tc, METHODNAME + " EntityNotFoundException[reposId=" + reposId + "] - " + uniqueId);
-                        }
-                    } catch (WIMSystemException wse) {
-                        String message = wse.getMessage();
-                        if (tc.isDebugEnabled()) {
-                            Tr.debug(tc, METHODNAME + " WSE message = " + message);
-                        }
-                        if (message != null && message.contains("CWIML4520E") && message.contains("javax.naming.InvalidNameException")) {
-                            if (tc.isDebugEnabled()) {
-                                Tr.debug(tc, METHODNAME + " WIMSystemException [reposId=" + reposId + "] - " + message);
-                            }
-                        } else
-                            throw wse;
-                    } catch (Exception e) {
-                        if (!isAllowOperationIfReposDown) {
-                            if (e instanceof WIMException) {
-                                throw (WIMException) e;
-                            }
-                            throw new WIMException(e);
-                        } else {
-                            if (tc.isDebugEnabled())
-                                Tr.debug(tc, METHODNAME + " IGNORE: exception [" + e.getMessage()
-                                             + "] when retrieve entity from repository [" + reposId + "]");
-                            failureRepositoryIds.add(reposId);
-
-                        }
+                if (uniqueId != null && repositoryId == null) {
+                    retEntDO = innerRetrieveEntityFromRepository(root, retEntDO, uniqueId, isAllowOperationIfReposDown, failureRepositoryIds);
+                } else {
+                    if (repositoryId == null) {
+                        repositoryId = getRepositoryManager().getRepositoryId(uniqueName);
                     }
-                }
-            } else {
-                if (repositoryId == null) {
-                    repositoryId = getRepositoryManager().getRepositoryId(uniqueName);
-                }
 
-                // from the specified repository
-                Root retRoot = getRepositoryManager().getRepository(repositoryId).get(root);
+                    // from the specified repository
+                    Root retRoot = getRepositoryManager().getRepository(repositoryId).get(root);
 
-                if (retRoot != null) {
-                    List<Entity> entList = retRoot.getEntities();
+                    if (retRoot != null) {
+                        List<Entity> entList = retRoot.getEntities();
 
-                    if (entList.size() >= 1) {
-                        retEntDO = entList.get(0);
+                        if (entList.size() >= 1) {
+                            retEntDO = entList.get(0);
+                        }
                     }
                 }
             }
+        } catch (EntityNotFoundException nfe) {
+            // No FFDC here -- only FFDC from calling innerRetrieveEntityFromRepository
+            AuditManager auditManager = new AuditManager();
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), auditManager.getRequestType(),
+                        repositoryId == null ? auditManager.getRepositoryId() : repositoryId, uniqueName,
+                        auditManager.getRepositoryRealm(), null, Integer.valueOf("212"));
+            throw nfe;
         }
 
         if (retEntDO == null) {
@@ -2192,6 +2198,10 @@ public class ProfileManager implements ProfileServiceLite {
             } else {
                 id = uniqueName;
             }
+            AuditManager auditManager = new AuditManager();
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), auditManager.getRequestType(),
+                        repositoryId == null ? auditManager.getRepositoryId() : repositoryId, uniqueName,
+                        auditManager.getRepositoryRealm(), null, Integer.valueOf("212"));
             throw new EntityNotFoundException(WIMMessageKey.ENTITY_NOT_FOUND, Tr.formatMessage(
                                                                                                tc,
                                                                                                WIMMessageKey.ENTITY_NOT_FOUND,
@@ -2205,6 +2215,59 @@ public class ProfileManager implements ProfileServiceLite {
         identifier.setUniqueName(idDO.getUniqueName());
         identifier.setRepositoryId(idDO.getRepositoryId());
 
+        return retEntDO;
+    }
+
+    /**
+     * Method created so we can ffdc the inner EntityNotFoundException
+     */
+    private Entity innerRetrieveEntityFromRepository(Root root, Entity retEntDO, String uniqueId, boolean isAllowOperationIfReposDown,
+                                                     Set<String> failureRepositoryIds) throws WIMException {
+        String METHODNAME = "retrieveEntityFromRepository";
+
+        List<String> reposIds = getRepositoryManager().getRepoIds();
+        for (int i = 0; (i < reposIds.size() && retEntDO == null); i++) {
+            String reposId = reposIds.get(i);
+
+            try {
+                Root retRoot = getRepositoryManager().getRepository(reposId).get(root);
+                if (retRoot != null) {
+                    List<Entity> entList = retRoot.getEntities();
+
+                    if (entList.size() >= 1) {
+                        retEntDO = entList.get(0);
+                    }
+                }
+            } catch (EntityNotFoundException e) {
+                if (tc.isDebugEnabled()) {
+                    Tr.debug(tc, METHODNAME + " EntityNotFoundException[reposId=" + reposId + "] - " + uniqueId);
+                }
+            } catch (WIMSystemException wse) {
+                String message = wse.getMessage();
+                if (tc.isDebugEnabled()) {
+                    Tr.debug(tc, METHODNAME + " WSE message = " + message);
+                }
+                if (message != null && message.contains("CWIML4520E") && message.contains("javax.naming.InvalidNameException")) {
+                    if (tc.isDebugEnabled()) {
+                        Tr.debug(tc, METHODNAME + " WIMSystemException [reposId=" + reposId + "] - " + message);
+                    }
+                } else
+                    throw wse;
+            } catch (Exception e) {
+                if (!isAllowOperationIfReposDown) {
+                    if (e instanceof WIMException) {
+                        throw (WIMException) e;
+                    }
+                    throw new WIMException(e);
+                } else {
+                    if (tc.isDebugEnabled())
+                        Tr.debug(tc, METHODNAME + " IGNORE: exception [" + e.getMessage()
+                                     + "] when retrieve entity from repository [" + reposId + "]");
+                    failureRepositoryIds.add(reposId);
+
+                }
+            }
+        }
         return retEntDO;
     }
 
@@ -2282,7 +2345,7 @@ public class ProfileManager implements ProfileServiceLite {
              * }
              */
             tempIdDO.setUniqueName(uniqueName);
-            Root retRootDO = getRepositoryManager().getTargetRepository(reposId).get(tempDO);
+            Root retRootDO = getRepositoryManager().getRepository(reposId).get(tempDO);
             if (retRootDO != null) {
                 List<Entity> pes = retRootDO.getEntities();
                 if (pes != null) {
@@ -2294,6 +2357,10 @@ public class ProfileManager implements ProfileServiceLite {
                         }
                     }
                 } else {
+                    AuditManager auditManager = new AuditManager();
+                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), auditManager.getRequestType(),
+                                reposId == null ? auditManager.getRepositoryId() : reposId, uniqueName,
+                                auditManager.getRepositoryRealm(), null, Integer.valueOf("212"));
                     throw new EntityNotFoundException(WIMMessageKey.ENTITY_NOT_FOUND, Tr.formatMessage(
                                                                                                        tc,
                                                                                                        WIMMessageKey.ENTITY_NOT_FOUND,
@@ -2378,6 +2445,28 @@ public class ProfileManager implements ProfileServiceLite {
             }
             if (value == null) {
                 value = getConfigManager().getDefaultRealmName();
+            }
+        }
+        return value;
+    }
+
+    /**
+     * First try to get the default or primary realm defined.
+     * If not found, then use the realm name from one of the
+     * registries.
+     * Added for populating audit records.
+     *
+     * @param root
+     * @return
+     */
+    private String getRealmNameOrFirstBest(Root root) {
+        String value = null;
+        value = getRealmName(root);
+        if (value == null) {
+            try {
+                value = getRealmName();
+            } catch (Exception e) {
+                // leave realm at null
             }
         }
         return value;
@@ -2610,6 +2699,7 @@ public class ProfileManager implements ProfileServiceLite {
      * @return
      * @throws WIMException
      */
+    @FFDCIgnore({ EntityNotFoundException.class })
     public Root deleteImpl(Root root) throws WIMException {
         final String METHODNAME = "deleteImpl";
 
@@ -2617,6 +2707,10 @@ public class ProfileManager implements ProfileServiceLite {
             return null;
 
         AuditManager auditManager = new AuditManager();
+        auditManager.setRequestType(AuditConstants.DELETE_AUDIT);
+        if (repositoryManager.getNumberOfRepositories() == 1) {
+            auditManager.setRepositoryId(repositoryManager.getRepoIds().get(0));
+        }
 
         // Check if this is logged in user.
         // Logged-in User cannot be deleted. isReferenceToLoggedInUser will throw exception in case
@@ -2628,13 +2722,15 @@ public class ProfileManager implements ProfileServiceLite {
         List<Entity> entities = root.getEntities();
 
         if (entities.size() == 0) {
-            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "delete", null, null, getRealmName(root), root, Integer.valueOf("201"));
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.DELETE_AUDIT, null, null, getRealmName(root), root,
+                        Integer.valueOf("201"));
 
             throw new EntityNotFoundException(WIMMessageKey.MISSING_ENTITY_DATA_OBJECT, Tr.formatMessage(tc,
                                                                                                          WIMMessageKey.MISSING_ENTITY_DATA_OBJECT,
                                                                                                          WIMMessageHelper.generateMsgParms(DELETE_EMITTER)));
         } else if (entities.size() > 1) {
-            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "delete", null, null, getRealmName(root), root, Integer.valueOf("202"));
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.DELETE_AUDIT, null, null, getRealmName(root), root,
+                        Integer.valueOf("202"));
 
             throw new OperationNotSupportedException(WIMMessageKey.ACTION_MULTIPLE_ENTITIES_SPECIFIED, Tr.formatMessage(tc,
                                                                                                                         WIMMessageKey.ACTION_MULTIPLE_ENTITIES_SPECIFIED,
@@ -2656,7 +2752,8 @@ public class ProfileManager implements ProfileServiceLite {
 
         IdentifierType identifier = entity.getIdentifier();
         if (identifier == null) {
-            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "delete", null, null, getRealmName(root), root, Integer.valueOf("203"));
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.DELETE_AUDIT, null, null, getRealmName(root), root,
+                        Integer.valueOf("203"));
 
             throw new EntityIdentifierNotSpecifiedException(WIMMessageKey.ENTITY_IDENTIFIER_NOT_SPECIFIED, Tr.formatMessage(tc, WIMMessageKey.ENTITY_IDENTIFIER_NOT_SPECIFIED));
         }
@@ -2671,7 +2768,8 @@ public class ProfileManager implements ProfileServiceLite {
         // check realm
         String realmName = getRealmName(root);
         if (realmName != null && !getConfigManager().isUniqueNameInRealm(uniqueName, realmName)) {
-            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "delete", repositoryId, uniqueName, realmName, root, Integer.valueOf("204"));
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.DELETE_AUDIT, repositoryId, uniqueName, realmName, root,
+                        Integer.valueOf("204"));
 
             throw new EntityNotInRealmScopeException(WIMMessageKey.ENTITY_NOT_IN_REALM_SCOPE, Tr.formatMessage(tc, WIMMessageKey.ENTITY_NOT_IN_REALM_SCOPE,
                                                                                                                WIMMessageHelper.generateMsgParms(uniqueName, realmName)));
@@ -2684,13 +2782,21 @@ public class ProfileManager implements ProfileServiceLite {
         auditManager.setRepositoryRealm(realmName);
         auditManager.setRepositoryUniqueName(uniqueName);
 
-        Root retRoot = repositoryManager.getRepository(repositoryId).delete(root);
+        Root retRoot = null;
+        try {
+            retRoot = repositoryManager.getRepository(repositoryId).delete(root);
+        } catch (EntityNotFoundException ex) {
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.DELETE_AUDIT, repositoryId, uniqueName, realmName, root,
+                        Integer.valueOf("212"));
+            throw ex;
+        }
 
         if (retRoot != null) {
             retRoot = postDelete(retRoot, repositoryId, returnDeleted);
         }
 
-        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "delete", repositoryId, uniqueName, realmName, retRoot, Integer.valueOf("200"));
+        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.DELETE_AUDIT, repositoryId, uniqueName,
+                    realmName != null ? realmName : getRealmNameOrFirstBest(retRoot), retRoot, Integer.valueOf("200"));
 
         return retRoot;
     }
@@ -2736,14 +2842,19 @@ public class ProfileManager implements ProfileServiceLite {
         if (tc.isDebugEnabled()) {
             Tr.debug(tc, "targetRepostID = ", targetReposId);
         }
+        auditManager.setRepositoryId(targetReposId);
+        auditManager.setRepositoryRealm(realmName);
+        auditManager.setRequestType(AuditConstants.CREATE_AUDIT);
 
         if (entities.size() == 0) {
-            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, null, getRealmName(root), root, Integer.valueOf("201"));
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId, null, getRealmName(root), root,
+                        Integer.valueOf("201"));
 
             throw new EntityNotFoundException(WIMMessageKey.MISSING_ENTITY_DATA_OBJECT, Tr.formatMessage(tc, WIMMessageKey.MISSING_ENTITY_DATA_OBJECT,
                                                                                                          WIMMessageHelper.generateMsgParms(RepositoryManager.ACTION_CREATE)));
         } else if (entities.size() > 1) {
-            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, null, getRealmName(root), root, Integer.valueOf("202"));
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId, null, getRealmName(root), root,
+                        Integer.valueOf("202"));
 
             throw new OperationNotSupportedException(WIMMessageKey.ACTION_MULTIPLE_ENTITIES_SPECIFIED, Tr.formatMessage(tc, WIMMessageKey.ACTION_MULTIPLE_ENTITIES_SPECIFIED,
                                                                                                                         WIMMessageHelper.generateMsgParms(RepositoryManager.ACTION_CREATE)));
@@ -2779,13 +2890,15 @@ public class ProfileManager implements ProfileServiceLite {
                             if (entity != null && entity.getIdentifier() != null) {
                                 if (tc.isDebugEnabled())
                                     Tr.debug(tc, "entity not null, parentDN null");
-                                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, entity.getIdentifier().getUniqueName(),
+                                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId,
+                                            entity.getIdentifier().getUniqueName(),
                                             realmName, root,
                                             Integer.valueOf("205"));
                             } else {
                                 if (tc.isDebugEnabled())
                                     Tr.debug(tc, "entity null, parentDN null");
-                                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, null, realmName, root,
+                                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId, null,
+                                            realmName, root,
                                             Integer.valueOf("205"));
                             }
                             throw new InvalidUniqueIdException(WIMMessageKey.INVALID_PARENT_UNIQUE_ID, Tr.formatMessage(tc, WIMMessageKey.INVALID_PARENT_UNIQUE_ID,
@@ -2797,12 +2910,15 @@ public class ProfileManager implements ProfileServiceLite {
                 if (entity != null && entity.getIdentifier() != null) {
                     if (tc.isDebugEnabled())
                         Tr.debug(tc, "parent.isSetIdentifier null, entity not null");
-                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, entity.getIdentifier().getUniqueName(), realmName,
+                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId,
+                                entity.getIdentifier().getUniqueName(),
+                                realmName,
                                 inRoot, Integer.valueOf("205"));
                 } else {
                     if (tc.isDebugEnabled())
                         Tr.debug(tc, "parent.isSetIdentifier null, entity null");
-                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, null, realmName, inRoot, Integer.valueOf("205"));
+                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId, null, realmName, inRoot,
+                                Integer.valueOf("205"));
                 }
                 throw new InvalidUniqueIdException(WIMMessageKey.INVALID_PARENT_UNIQUE_ID, Tr.formatMessage(tc, WIMMessageKey.INVALID_PARENT_UNIQUE_ID,
                                                                                                             WIMMessageHelper.generateMsgParms(null)));
@@ -2826,10 +2942,12 @@ public class ProfileManager implements ProfileServiceLite {
 
         if (parentDN == null) {
             if (entity != null && entity.getIdentifier() != null)
-                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, entity.getIdentifier().getUniqueName(), realmName,
+                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId,
+                            entity.getIdentifier().getUniqueName(), realmName,
                             root, Integer.valueOf("206"));
             else
-                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, null, realmName, root, Integer.valueOf("206"));
+                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId, null, realmName, root,
+                            Integer.valueOf("206"));
 
             throw new DefaultParentNotFoundException(WIMMessageKey.DEFAULT_PARENT_NOT_FOUND, Tr.formatMessage(tc, WIMMessageKey.DEFAULT_PARENT_NOT_FOUND,
                                                                                                               WIMMessageHelper.generateMsgParms(qualifiedEntityType, realmName)));
@@ -2837,10 +2955,12 @@ public class ProfileManager implements ProfileServiceLite {
 
         if (!getConfigManager().isUniqueNameInRealm(parentDN, realmName)) {
             if (entity != null && entity.getIdentifier() != null)
-                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, entity.getIdentifier().getUniqueName(), realmName,
+                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId,
+                            entity.getIdentifier().getUniqueName(), realmName,
                             root, Integer.valueOf("204"));
             else
-                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, null, realmName, root, Integer.valueOf("204"));
+                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId, null, realmName, root,
+                            Integer.valueOf("204"));
 
             throw new EntityNotInRealmScopeException(WIMMessageKey.ENTITY_NOT_IN_REALM_SCOPE, Tr.formatMessage(tc, WIMMessageKey.ENTITY_NOT_IN_REALM_SCOPE,
                                                                                                                WIMMessageHelper.generateMsgParms(parentDN, realmName)));
@@ -2863,7 +2983,9 @@ public class ProfileManager implements ProfileServiceLite {
                     || !entityUniqueName.endsWith(parentDN)) {
                     if (tc.isDebugEnabled())
                         Tr.debug(tc, "entity not being created under the right parent");
-                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, entity.getIdentifier().getUniqueName(), realmName,
+                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId,
+                                entity.getIdentifier().getUniqueName(),
+                                realmName,
                                 inRoot, Integer.valueOf("205"));
 
                     throw new InvalidUniqueIdException(WIMMessageKey.INVALID_PARENT_UNIQUE_ID, Tr.formatMessage(tc, WIMMessageKey.INVALID_PARENT_UNIQUE_ID,
@@ -2899,7 +3021,8 @@ public class ProfileManager implements ProfileServiceLite {
                         String reposId = retrieveTargetRepository(memberId);
                         boolean crossRepos = repositoryManager.canGroupAcceptMember(targetReposId, reposId);
                         if (!(crossRepos || targetReposId.equalsIgnoreCase(reposId))) {
-                            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, entity.getIdentifier().getUniqueName(),
+                            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId,
+                                        entity.getIdentifier().getUniqueName(),
                                         realmName, root,
                                         Integer.valueOf("207"));
                             throw new OperationNotSupportedException(WIMMessageKey.MISSING_REPOSITORIES_FOR_GROUPS_CONFIGURATION, Tr.formatMessage(tc,
@@ -2942,10 +3065,12 @@ public class ProfileManager implements ProfileServiceLite {
 
         if (!SchemaConstants.DO_PERSON_ACCOUNT.equalsIgnoreCase(qualifiedEntityType) && !SchemaConstants.DO_GROUP.equalsIgnoreCase(qualifiedEntityType)) {
             if (entity != null && entity.getIdentifier() != null)
-                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, entity.getIdentifier().getUniqueName(), realmName,
+                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId,
+                            entity.getIdentifier().getUniqueName(), realmName,
                             root, Integer.valueOf("208"));
             else
-                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, null, realmName, root, Integer.valueOf("208"));
+                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId, null, realmName, root,
+                            Integer.valueOf("208"));
 
             throw new EntityTypeNotSupportedException(WIMMessageKey.ENTITY_TYPE_NOT_SUPPORTED, Tr.formatMessage(tc, WIMMessageKey.ENTITY_TYPE_NOT_SUPPORTED,
                                                                                                                 WIMMessageHelper.generateMsgParms(qualifiedEntityType)));
@@ -2953,10 +3078,12 @@ public class ProfileManager implements ProfileServiceLite {
 
         if (entity.getIdentifier() == null || entity.getIdentifier().getUniqueName() == null) {
             if (entity != null && entity.getIdentifier() != null)
-                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, entity.getIdentifier().getUniqueName(), realmName,
+                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId,
+                            entity.getIdentifier().getUniqueName(), realmName,
                             root, Integer.valueOf("203"));
             else
-                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, null, realmName, root, Integer.valueOf("203"));
+                Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId, null, realmName, root,
+                            Integer.valueOf("203"));
             throw new EntityIdentifierNotSpecifiedException(WIMMessageKey.ENTITY_IDENTIFIER_NOT_SPECIFIED, Tr.formatMessage(tc, WIMMessageKey.ENTITY_IDENTIFIER_NOT_SPECIFIED));
         }
 
@@ -3002,7 +3129,8 @@ public class ProfileManager implements ProfileServiceLite {
 
                         update(newRoot);
                     } else {
-                        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, entity.getIdentifier().getUniqueName(),
+                        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId,
+                                    entity.getIdentifier().getUniqueName(),
                                     realmName, created,
                                     Integer.valueOf("207"));
                         throw new OperationNotSupportedException(WIMMessageKey.MISSING_REPOSITORIES_FOR_GROUPS_CONFIGURATION, Tr.formatMessage(tc,
@@ -3018,7 +3146,8 @@ public class ProfileManager implements ProfileServiceLite {
 
         unsetExternalId(created);
 
-        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "create", targetReposId, uniqueName, realmName, created, Integer.valueOf("200"));
+        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.CREATE_AUDIT, targetReposId, uniqueName,
+                    realmName != null ? realmName : getRealmNameOrFirstBest(created), created, Integer.valueOf("200"));
 
         return created;
     }
@@ -3249,6 +3378,10 @@ public class ProfileManager implements ProfileServiceLite {
         }
 
         AuditManager auditManager = new AuditManager();
+        auditManager.setRequestType(AuditConstants.UPDATE_AUDIT);
+        if (repositoryManager.getNumberOfRepositories() == 1) {
+            auditManager.setRepositoryId(repositoryManager.getRepoIds().get(0));
+        }
 
         Root retRoot = null;
         String repositoryId = null;
@@ -3316,7 +3449,9 @@ public class ProfileManager implements ProfileServiceLite {
                                 String messageKey = e.getMessageKey();
                                 // If this message is thrown by a read only adapter i.e. UR Bridge, then consume this exception.
                                 if (WIMMessageKey.CANNOT_WRITE_TO_READ_ONLY_REPOSITORY.equalsIgnoreCase(messageKey)) {
-                                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "update", repositoryId, null, getRealmName(root), root,
+                                    Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.UPDATE_AUDIT, repositoryId,
+                                                id.getUniqueName(),
+                                                getRealmName(root), root,
                                                 Integer.valueOf("209"));
                                     // Consuming this exception
                                     if (tc.isDebugEnabled()) {
@@ -3382,11 +3517,13 @@ public class ProfileManager implements ProfileServiceLite {
         List<Entity> entities = root.getEntities();
 
         if (entities.size() == 0) {
-            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "update", repositoryId, null, getRealmName(root), root, Integer.valueOf("201"));
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.UPDATE_AUDIT, repositoryId, null, getRealmName(root), root,
+                        Integer.valueOf("201"));
             throw new EntityNotFoundException(WIMMessageKey.MISSING_ENTITY_DATA_OBJECT, Tr.formatMessage(tc, WIMMessageKey.MISSING_ENTITY_DATA_OBJECT,
                                                                                                          WIMMessageHelper.generateMsgParms(RepositoryManager.ACTION_DELETE)));
         } else if (entities.size() > 1) {
-            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "update", repositoryId, null, getRealmName(root), root, Integer.valueOf("202"));
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.UPDATE_AUDIT, repositoryId, null, getRealmName(root), root,
+                        Integer.valueOf("202"));
             throw new OperationNotSupportedException(WIMMessageKey.ACTION_MULTIPLE_ENTITIES_SPECIFIED, Tr.formatMessage(tc, WIMMessageKey.ACTION_MULTIPLE_ENTITIES_SPECIFIED,
                                                                                                                         WIMMessageHelper.generateMsgParms(RepositoryManager.ACTION_DELETE)));
         }
@@ -3399,7 +3536,8 @@ public class ProfileManager implements ProfileServiceLite {
 
         IdentifierType identifier = entity.getIdentifier();
         if (identifier == null) {
-            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "update", repositoryId, null, getRealmName(root), root, Integer.valueOf("203"));
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.UPDATE_AUDIT, repositoryId, null, getRealmName(root), root,
+                        Integer.valueOf("203"));
             throw new EntityIdentifierNotSpecifiedException(WIMMessageKey.ENTITY_IDENTIFIER_NOT_SPECIFIED, Tr.formatMessage(tc, WIMMessageKey.ENTITY_IDENTIFIER_NOT_SPECIFIED));
         }
 
@@ -3414,12 +3552,12 @@ public class ProfileManager implements ProfileServiceLite {
 
         String realEntityType = realEntity.getTypeName();
 
-        String uniqueId = identifier.getUniqueId();
         String uniqueName = identifier.getUniqueName();
 
         String realmName = getRealmName(root);
         if (realmName != null && !getConfigManager().isUniqueNameInRealm(uniqueName, realmName)) {
-            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "update", repositoryId, uniqueName, realmName, root, Integer.valueOf("204"));
+            Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.UPDATE_AUDIT, repositoryId, uniqueName, realmName, root,
+                        Integer.valueOf("204"));
             throw new EntityNotInRealmScopeException(WIMMessageKey.ENTITY_NOT_IN_REALM_SCOPE, Tr.formatMessage(tc, WIMMessageKey.ENTITY_NOT_IN_REALM_SCOPE,
                                                                                                                WIMMessageHelper.generateMsgParms(uniqueName, realmName)));
         }
@@ -3442,7 +3580,8 @@ public class ProfileManager implements ProfileServiceLite {
                     if (crossRepos || repositoryId.equalsIgnoreCase(reposId)) {
                         updateCrossRepos = updateCrossRepos && false;
                     } else {
-                        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "update", repositoryId, uniqueName, realmName, root,
+                        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.UPDATE_AUDIT, repositoryId, uniqueName, realmName,
+                                    root,
                                     Integer.valueOf("207"));
                         throw new OperationNotSupportedException(WIMMessageKey.MISSING_REPOSITORIES_FOR_GROUPS_CONFIGURATION, Tr.formatMessage(tc,
                                                                                                                                                WIMMessageKey.MISSING_REPOSITORIES_FOR_GROUPS_CONFIGURATION,
@@ -3501,7 +3640,8 @@ public class ProfileManager implements ProfileServiceLite {
                     IdentifierType groupId = group.getIdentifier();
                     String reposId = retrieveTargetRepository(groupId);
                     if (!repositoryId.equalsIgnoreCase(reposId)) {
-                        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "update", repositoryId, uniqueName, realmName, root,
+                        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.UPDATE_AUDIT, repositoryId, uniqueName, realmName,
+                                    root,
                                     Integer.valueOf("207"));
                         throw new OperationNotSupportedException(WIMMessageKey.MISSING_REPOSITORIES_FOR_GROUPS_CONFIGURATION, Tr.formatMessage(tc,
                                                                                                                                                WIMMessageKey.MISSING_REPOSITORIES_FOR_GROUPS_CONFIGURATION,
@@ -3516,15 +3656,18 @@ public class ProfileManager implements ProfileServiceLite {
         }
 
         if (!updateCrossRepos) {
-            setUniqueName(inputGrps);
-            // checkAccessibility(UPDATE, RepositoryManager.ACTION_UPDATE, repositoryId, realEntityType);
             auditManager.setRepositoryId(repositoryId);
             auditManager.setRepositoryRealm(realmName);
             auditManager.setRepositoryUniqueName(uniqueName);
 
+            setUniqueName(inputGrps);
+            // checkAccessibility(UPDATE, RepositoryManager.ACTION_UPDATE, repositoryId, realEntityType);
+
             retRoot = repositoryManager.getRepository(repositoryId).update(root);
         }
-        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), "update", repositoryId, uniqueName, realmName, retRoot, Integer.valueOf("200"));
+
+        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), AuditConstants.UPDATE_AUDIT, repositoryId, uniqueName,
+                    realmName != null ? realmName : getRealmNameOrFirstBest(retRoot), retRoot, Integer.valueOf("200"));
 
         return retRoot;
     }
@@ -3551,6 +3694,9 @@ public class ProfileManager implements ProfileServiceLite {
                     }
                     uniqueName = getUniqueNameByUniqueId(uniqueId, false, null);
                     if (uniqueName == null) {
+                        AuditManager auditManager = new AuditManager();
+                        Audit.audit(Audit.EventID.SECURITY_MEMBER_MGMT_01, auditManager.getRESTRequest(), auditManager.getRequestType(), auditManager.getRepositoryId(), uniqueName,
+                                    auditManager.getRepositoryRealm(), null, Integer.valueOf("212"));
                         throw new EntityNotFoundException(WIMMessageKey.ENTITY_NOT_FOUND, Tr.formatMessage(tc, WIMMessageKey.ENTITY_NOT_FOUND,
                                                                                                            WIMMessageHelper.generateMsgParms(uniqueId)));
                     } else {
@@ -3619,4 +3765,5 @@ public class ProfileManager implements ProfileServiceLite {
         }
         return false;
     }
+
 }

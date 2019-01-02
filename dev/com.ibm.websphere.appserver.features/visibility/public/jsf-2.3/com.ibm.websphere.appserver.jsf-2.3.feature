@@ -34,11 +34,12 @@ Subsystem-Name: JavaServer Faces 2.3
  com.ibm.websphere.appserver.javax.validation-2.0, \
  com.ibm.websphere.appserver.javax.jsf-2.3, \
  com.ibm.websphere.appserver.jsp-2.3, \
+ com.ibm.websphere.appserver.internal.optional.jaxb-2.2,\
  com.ibm.websphere.appserver.jsfProvider-2.3.0.MyFaces, \
  com.ibm.websphere.appserver.javaeeCompatible-8.0
 -bundles=com.ibm.ws.org.apache.myfaces.2.3, \
  com.ibm.ws.org.apache.commons.beanutils.1.8.3, \
- com.ibm.ws.org.apache.commons.collections.3.2.1, \
+ com.ibm.ws.org.apache.commons.collections, \
  com.ibm.ws.org.apache.commons.discovery.0.2, \
  com.ibm.ws.org.apache.commons.logging.1.0.3, \
  com.ibm.ws.jsf.shared, \

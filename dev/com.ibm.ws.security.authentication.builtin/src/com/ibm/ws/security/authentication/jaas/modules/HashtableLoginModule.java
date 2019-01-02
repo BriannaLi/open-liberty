@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2011 IBM Corporation and others.
+ * Copyright (c) 2011, 2018 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -27,7 +27,6 @@ import com.ibm.ws.ffdc.annotation.FFDCIgnore;
 import com.ibm.ws.security.AccessIdUtil;
 import com.ibm.ws.security.authentication.AuthenticationConstants;
 import com.ibm.ws.security.authentication.AuthenticationException;
-import com.ibm.ws.security.authentication.AuthenticationService;
 import com.ibm.ws.security.authentication.internal.jaas.modules.ServerCommonLoginModule;
 import com.ibm.ws.security.authentication.principals.WSPrincipal;
 import com.ibm.ws.security.authentication.utility.SubjectHelper;
@@ -49,6 +48,7 @@ public class HashtableLoginModule extends ServerCommonLoginModule implements Log
     private String username = null;
     private String urAuthenticatedId = null;
     private String customRealm = null;
+    private String internalAuthProvider = null;
 
     private final String[] hashtableLoginProperties = { AttributeNameConstants.WSCREDENTIAL_UNIQUEID,
                                                         AttributeNameConstants.WSCREDENTIAL_USERID,
@@ -56,16 +56,13 @@ public class HashtableLoginModule extends ServerCommonLoginModule implements Log
                                                         AttributeNameConstants.WSCREDENTIAL_REALM,
                                                         AttributeNameConstants.WSCREDENTIAL_CACHE_KEY,
                                                         AuthenticationConstants.INTERNAL_ASSERTION_KEY,
-                                                        AuthenticationConstants.INTERNAL_JSON_WEB_TOKEN };
-
-    private final String[] userIdOnlyProperties = { AttributeNameConstants.WSCREDENTIAL_USERID,
-                                                    AuthenticationConstants.INTERNAL_ASSERTION_KEY };
+                                                        AuthenticationConstants.INTERNAL_JSON_WEB_TOKEN,
+                                                        AuthenticationConstants.INTERNAL_AUTH_PROVIDER };
 
     private boolean uniquedIdAndSecurityNameLogin = false;
     private boolean useIdAndPasswordLogin = false;
     private boolean userIdNoPasswordLogin = false;
     private Hashtable<String, ?> customProperties = null;
-    private boolean customPropertiesFromSubject = false;
 
     /** {@inheritDoc} */
     @Override
@@ -107,6 +104,7 @@ public class HashtableLoginModule extends ServerCommonLoginModule implements Log
 
         customCacheKey = getCustomCacheKey(customProperties);
         customRealm = (String) customProperties.get(AttributeNameConstants.WSCREDENTIAL_REALM);
+        internalAuthProvider = (String) customProperties.get(AuthenticationConstants.INTERNAL_AUTH_PROVIDER);
 
         String uniqueId = (String) customProperties.get(AttributeNameConstants.WSCREDENTIAL_UNIQUEID);
         String securityName = (String) customProperties.get(AttributeNameConstants.WSCREDENTIAL_SECURITYNAME);
@@ -130,34 +128,6 @@ public class HashtableLoginModule extends ServerCommonLoginModule implements Log
         if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
             Tr.debug(tc, "Not enough information in Hashtable to continue, abstaining.");
         }
-        return false;
-    }
-
-    /**
-     * @return
-     */
-    private boolean allowLoginWithIdOnly(Hashtable<String, ?> customProperties) {
-        AuthenticationService authService = getAuthenticationService();
-        if (authService != null && authService.isAllowHashTableLoginWithIdOnly())
-            return true;
-
-        Boolean assertion = Boolean.FALSE;
-        if (customPropertiesFromSubject) {
-            Object value = customProperties.get(AuthenticationConstants.INTERNAL_ASSERTION_KEY);
-            assertion = (Boolean) (value != null ? value : Boolean.FALSE);
-            removeInternalAssertionHashtable(customProperties, userIdOnlyProperties);
-        } else {
-            String[] hashtableInternalProperty = { AuthenticationConstants.INTERNAL_ASSERTION_KEY };
-            Hashtable<String, ?> internalProperties = subjectHelper.getHashtableFromSubject(subject, hashtableInternalProperty);
-            if (internalProperties != null && !internalProperties.isEmpty()) {
-                assertion = Boolean.TRUE;
-                removeInternalAssertionHashtable(internalProperties, userIdOnlyProperties);
-            }
-        }
-        if (assertion.booleanValue()) {
-            return true;
-        }
-
         return false;
     }
 
@@ -322,26 +292,40 @@ public class HashtableLoginModule extends ServerCommonLoginModule implements Log
         if (uniquedIdAndSecurityNameLogin || useIdAndPasswordLogin || userIdNoPasswordLogin) {
             setUpSubject();
         }
-        if (customCacheKey != null || customRealm != null) {
-            SingleSignonToken ssoToken = getSSOToken(subject);
-            if (ssoToken != null) {
-                if (customCacheKey != null) {
-                    if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
-                        Tr.debug(tc, "Add custom cache key into SSOToken");
-                    }
-                    ssoToken.addAttribute(AttributeNameConstants.WSCREDENTIAL_CACHE_KEY, (String) customCacheKey);
-                }
-                if (customRealm != null) {
-                    if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
-                        Tr.debug(tc, "Add custom realm into SSOToken");
-                    }
-                    ssoToken.addAttribute(AttributeNameConstants.WSCREDENTIAL_REALM, customRealm);
-                }
-            }
-            JwtSSOTokenHelper.addCustomCacheKeyToJwtSSOToken(subject, (String) customCacheKey);
+        if (customCacheKey != null || customRealm != null || internalAuthProvider != null) {
+            addCustomAttributesToSSOToken();
+            //Recreate the jwtSSOToken with custom Attributes in hashtable such as customCacheKey, customRealm, authProvider
+            JwtSSOTokenHelper.addAttributesToJwtSSOToken(subject);
         }
 
         return true;
+    }
+
+    /**
+     *
+     */
+    private void addCustomAttributesToSSOToken() {
+        SingleSignonToken ssoToken = getSSOToken(subject);
+        if (ssoToken != null) {
+            if (customCacheKey != null) {
+                if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
+                    Tr.debug(tc, "Add custom cache key into SSOToken");
+                }
+                ssoToken.addAttribute(AttributeNameConstants.WSCREDENTIAL_CACHE_KEY, (String) customCacheKey);
+            }
+            if (customRealm != null) {
+                if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
+                    Tr.debug(tc, "Add custom realm into SSOToken");
+                }
+                ssoToken.addAttribute(AttributeNameConstants.WSCREDENTIAL_REALM, customRealm);
+            }
+            if (internalAuthProvider != null) {
+                if (TraceComponent.isAnyTracingEnabled() && tc.isDebugEnabled()) {
+                    Tr.debug(tc, "Add authentication provider into SSOToken");
+                }
+                ssoToken.addAttribute(AuthenticationConstants.INTERNAL_AUTH_PROVIDER, internalAuthProvider);
+            }
+        }
     }
 
     /** {@inheritDoc} */

@@ -35,7 +35,7 @@ import componenttest.topology.impl.LibertyServer;
  * We're extending CDITestBase, which has common test code.
  */
 @Mode(TestMode.FULL)
-@MinimumJavaLevel(javaLevel = 1.8)
+@MinimumJavaLevel(javaLevel = 8)
 @RunWith(FATRunner.class)
 public class CDIConfigByACPTests extends CDITestBase {
 
@@ -52,6 +52,7 @@ public class CDIConfigByACPTests extends CDITestBase {
         cdiConfigByACPJar.addPackage("com.ibm.ws.jsf23.fat.cdi.common.beans.injected");
         cdiConfigByACPJar.addPackage("com.ibm.ws.jsf23.fat.cdi.common.managed");
         cdiConfigByACPJar.addPackage("com.ibm.ws.jsf23.fat.cdi.common.managed.factories");
+        cdiConfigByACPJar.addPackage("com.ibm.ws.jsf23.fat.cdi.common.managed.factories.client.window");
         cdiConfigByACPJar.addPackage("com.ibm.ws.jsf23.fat.cdi.jar.appconfigpop");
         ShrinkHelper.addDirectory(cdiConfigByACPJar, "test-applications/" + "CDIConfigByACP.jar" + "/resources");
 

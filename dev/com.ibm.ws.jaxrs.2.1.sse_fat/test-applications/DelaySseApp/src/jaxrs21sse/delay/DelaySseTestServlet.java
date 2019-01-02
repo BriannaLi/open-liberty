@@ -59,20 +59,20 @@ public class DelaySseTestServlet extends FATServlet {
 
         final List<String> receivedEvents = new ArrayList<String>();
         final List<String> eventSourceTimes = new ArrayList<String>();
-        final CountDownLatch executionLatch = new CountDownLatch(4);
+        final CountDownLatch executionLatch = new CountDownLatch(2);
 
         Client client = ClientBuilder.newClient();
         int port = req.getServerPort();
         WebTarget target = client.target("http://localhost:" + port + "/DelaySseApp/delay/retry3");
 
         try (SseEventSource source = SseEventSource.target(target).build()) {
-            System.out.println("client invoking server SSE resource on: " + source);
+            System.out.println("DelaySseTestServlet:  client invoking server SSE resource on: " + source);
             source.register(
                             new Consumer<InboundSseEvent>() { // event
 
                                 @Override
                                 public void accept(InboundSseEvent t) {
-                                    System.out.println("new delay event: " + t.getId() + " " + t.getName() + " " + t.getReconnectDelay() + " " + t.readData());
+                                    System.out.println("DelaySseResource:  new delay event: " + t.getId() + " " + t.getName() + " " + t.getReconnectDelay() + " " + t.readData());
                                     receivedEvents.add(t.readData(String.class));
                                 }
                             },
@@ -100,9 +100,22 @@ public class DelaySseTestServlet extends FATServlet {
                             });
 
             source.open();
-            System.out.println("client source open");
+            System.out.println("DelaySseTestServlet:  client source open");
 
-            assertTrue("Completion listener runnable was not executed", executionLatch.await(30, TimeUnit.SECONDS));
+            boolean success = executionLatch.await(120, TimeUnit.SECONDS);
+            if (!success) {
+                for (String re : receivedEvents) {
+                    int i = 0;
+                    System.out.println("receivedEvent " + i + " : " + re);
+                    i++;
+                }
+                for (String et : eventSourceTimes) {
+                    int i = 0;
+                    System.out.println("eventSourceTime " + i + " : " + et);
+                    i++;
+                }
+            }
+            assertTrue("Completion listener runnable was not executed", success);
 
         } catch (InterruptedException e) {
             // falls through
@@ -112,17 +125,7 @@ public class DelaySseTestServlet extends FATServlet {
         assertEquals("Received an unexpected number of events", 2, receivedEvents.size());
         assertEquals("Unexpected results", "Retry Test Successful", receivedEvents.get(0));
         assertEquals("Unexpected results", "Reset Test Successful", receivedEvents.get(1));
-        assertEquals("Unexpected time results", "3", eventSourceTimes.get(0));
-        // Second time is from an HTTP Date.  Converting from seconds to ms may result in variations that
-        // we will need to account for.
-        long time = Long.valueOf(eventSourceTimes.get(1));
-        boolean goodTime = false;
-        if ((time >= 9000) && (time <= 11000)) {
-            goodTime = true;
-        }
-        assertTrue("Time not in expected range", goodTime);
-        assertEquals("Unexpected time results", "5000", eventSourceTimes.get(2));
-        assertEquals("Unexpected time results", "-1", eventSourceTimes.get(3));
+        assertEquals("Unexpected time results", "5000", eventSourceTimes.get(0));
     }
 
 }

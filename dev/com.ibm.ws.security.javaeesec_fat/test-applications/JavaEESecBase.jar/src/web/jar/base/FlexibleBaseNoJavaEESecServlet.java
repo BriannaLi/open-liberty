@@ -87,6 +87,10 @@ public abstract class FlexibleBaseNoJavaEESecServlet extends HttpServlet {
     @Override
     public void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         handleRequest("GET", req, resp);
+        String op = req.getParameter("logout");
+        if (op != null && "true".equals(op)) {
+            req.logout();
+        }
     }
 
     @Override
@@ -109,6 +113,7 @@ public abstract class FlexibleBaseNoJavaEESecServlet extends HttpServlet {
      */
     public void handleRequest(String type, HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         PrintWriter writer = resp.getWriter();
+        writer.println("HandleRequest: We are at the WRONG manager method call!!!!");
         writer.println("ServletName: " + servletName);
         writer.println("Request type: " + type);
 

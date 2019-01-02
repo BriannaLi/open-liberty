@@ -20,14 +20,17 @@ import org.jboss.shrinkwrap.api.asset.FileAsset;
 import org.jboss.shrinkwrap.api.spec.WebArchive;
 import org.junit.ClassRule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import com.ibm.ws.fat.util.BuildShrinkWrap;
 import com.ibm.ws.fat.util.LoggingTest;
 import com.ibm.ws.fat.util.ShrinkWrapSharedServer;
 
+import componenttest.custom.junit.runner.FATRunner;
 import componenttest.custom.junit.runner.Mode;
 import componenttest.custom.junit.runner.Mode.TestMode;
 
+@RunWith(FATRunner.class)
 @Mode(TestMode.FULL)
 public class AfterTypeDiscoveryTest extends LoggingTest {
 
@@ -56,7 +59,7 @@ public class AfterTypeDiscoveryTest extends LoggingTest {
         afterTypeDiscoveryApp.add(new FileAsset(new File("test-applications/afterTypeDiscoveryApp.war/resources/WEB-INF/beans.xml")), "/WEB-INF/beans.xml");
         afterTypeDiscoveryApp.add(new FileAsset(new File("test-applications/afterTypeDiscoveryApp.war/resources/META-INF/services/javax.enterprise.inject.spi.Extension")),
                                   "/META-INF/services/javax.enterprise.inject.spi.Extension");
-        archives.put(afterTypeDiscoveryApp, "publish/servers/cdi12AfterTypeDiscoveryServer/apps");
+        archives.put(afterTypeDiscoveryApp, "/apps");
         return archives;
     }
 

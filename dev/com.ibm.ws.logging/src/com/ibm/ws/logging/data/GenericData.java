@@ -10,72 +10,125 @@
  *******************************************************************************/
 package com.ibm.ws.logging.data;
 
-import java.util.ArrayList;
-
 public class GenericData {
 
-    private final ArrayList<Pair> pairs;
+    private final static int DEFAULT_SIZE = 16;
 
-    private String sourceType;
+    private KeyValuePair[] pairs;
+
+    private String sourceName;
 
     private String jsonMessage = null;
 
+    private Integer lastIndex = -1;
+
     public GenericData() {
-        pairs = new ArrayList<Pair>();
+        pairs = new KeyValuePair[DEFAULT_SIZE];
     }
 
     public GenericData(int size) {
-        pairs = new ArrayList<Pair>(size);
+        pairs = new KeyValuePair[size];
+    }
+
+    public GenericData(String sourceName) {
+        this(sourceName, DEFAULT_SIZE);
+    }
+
+    public GenericData(String sourceName, int size) {
+        this.sourceName = sourceName;
+        pairs = new KeyValuePair[size];
     }
 
     public void setPair(int index, String key, String value) {
         KeyValueStringPair kvp = new KeyValueStringPair(key, value);
-        pairs.add(index, kvp);
+        ensureCapacityAndSetPair(index, kvp);
     }
 
     public void setPair(int index, String key, int value) {
         KeyValueIntegerPair kvp = new KeyValueIntegerPair(key, value);
-        pairs.add(index, kvp);
+        ensureCapacityAndSetPair(index, kvp);
     }
 
     public void setPair(int index, String key, long value) {
         KeyValueLongPair kvp = new KeyValueLongPair(key, value);
-        pairs.add(index, kvp);
+        ensureCapacityAndSetPair(index, kvp);
     }
 
     public void setPair(int index, KeyValuePairList kvps) {
-        pairs.add(index, kvps);
+        ensureCapacityAndSetPair(index, kvps);
+
     }
 
     public void addPair(String key, String value) {
         KeyValueStringPair kvp = new KeyValueStringPair(key, value);
-        pairs.add(kvp);
+        ensureCapacityAndAddPair(kvp);
     }
 
     public void addPair(String key, int value) {
         KeyValueIntegerPair kvp = new KeyValueIntegerPair(key, value);
-        pairs.add(kvp);
+        ensureCapacityAndAddPair(kvp);
     }
 
     public void addPair(String key, long value) {
         KeyValueLongPair kvp = new KeyValueLongPair(key, value);
-        pairs.add(kvp);
+        ensureCapacityAndAddPair(kvp);
     }
 
     public void addPair(KeyValuePairList kvps) {
-        pairs.add(kvps);
+        ensureCapacityAndAddPair(kvps);
     }
 
-    public ArrayList<Pair> getPairs() {
+    /* Resizes pairs array when full */
+    private void ensureCapacityAndAddPair(KeyValuePair kvp) {
+        if (lastIndex + 1 < pairs.length) {
+            pairs[++lastIndex] = kvp;
+        } else {
+            pairs = java.util.Arrays.copyOf(pairs, Math.max(pairs.length + (pairs.length >> 1), DEFAULT_SIZE));
+            pairs[++lastIndex] = kvp;
+        }
+    }
+
+    /* Resizes pairs array when full */
+    private void ensureCapacityAndSetPair(int index, KeyValuePair kvp) {
+        if (index < pairs.length) {
+            pairs[index] = kvp;
+        } else {
+            pairs = java.util.Arrays.copyOf(pairs, Math.max(index + (index >> 1), DEFAULT_SIZE));
+            pairs[index] = kvp;
+        }
+        setLastIndex(index);
+    }
+
+    /* Ensures that addPair() will not override values set by setPair() */
+    private void setLastIndex(int index) {
+        lastIndex = (index > lastIndex) ? index : lastIndex;
+    }
+
+    protected String getStringValue(int index) {
+        KeyValueStringPair kvp = (KeyValueStringPair) pairs[index];
+        return kvp == null ? null : kvp.getStringValue();
+    }
+
+    protected int getIntValue(int index) {
+        KeyValueIntegerPair kvp = (KeyValueIntegerPair) pairs[index];
+        return kvp.getIntValue();
+    }
+
+    protected long getLongValue(int index) {
+        KeyValueLongPair kvp = (KeyValueLongPair) pairs[index];
+        return kvp.getLongValue();
+    }
+
+    public KeyValuePair[] getPairs() {
         return pairs;
     }
 
-    public String getSourceType() {
-        return sourceType;
+    public String getSourceName() {
+        return sourceName;
     }
 
-    public void setSourceType(String sourceType) {
-        this.sourceType = sourceType;
+    public void setSourceName(String sourceName) {
+        this.sourceName = sourceName;
     }
 
     /** {@inheritDoc} */
@@ -86,13 +139,21 @@ public class GenericData {
         StringBuilder sb = new StringBuilder();
         String comma = ",";
         sb.append("GenericData [");
-        sb.append("type=" + sourceType);
-        for (Pair p : pairs) {
-            if (p instanceof KeyValuePair) {
-                kvp = (KeyValuePair) p;
+        /*
+         * Current FAT tests currently query logs for type=<sourceName>
+         *
+         * The source name (e.g. com.ibm.ws.logging.source.message) is essentially the "type"
+         * Do not confuse this with the "logging event type" (e.g. liberty_message) that is used for JSON logging
+         * for the JSON data object
+         *
+         */
+        sb.append("type=" + sourceName);
+        for (KeyValuePair p : pairs) {
+            if (p != null && !p.isList()) {
+                kvp = p;
                 key = kvp.getKey();
                 sb.append(comma);
-                if (sourceType.equals("com.ibm.ws.logging.ffdc.source.ffdcsource") && key.equals("ibm_threadId")) {
+                if (sourceName.equals("com.ibm.ws.logging.ffdc.source.ffdcsource") && key.equals("ibm_threadId")) {
                     key = "threadID";
                 }
                 if (kvp.isInteger()) {

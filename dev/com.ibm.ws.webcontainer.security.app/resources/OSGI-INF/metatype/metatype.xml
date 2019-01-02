@@ -84,6 +84,10 @@
             required="false" type="Boolean"
             default="false" />
 
+        <AD id="useLtpaSSOForJaspic" name="%useLtpaSSOForJaspic" description="%useLtpaSSOForJaspic.desc"
+             required="false" type="Boolean"
+             default="false" />
+
         <AD id="useAuthenticationDataForUnprotectedResource" name="%useAuthenticationDataForUnprotectedResource" description="%useAuthenticationDataForUnprotectedResource.desc"
             required="false" type="Boolean"
             default="true" />
@@ -102,6 +106,7 @@
             required="false" type="String" > 
  				<Option label="%allowAuthenticationFailOverToAuthMethod.BASIC" value="BASIC" />
             	<Option label="%allowAuthenticationFailOverToAuthMethod.FORM" value="FORM" />
+            	<Option label="%allowAuthenticationFailOverToAuthMethod.APP_DEFINED" value="APP_DEFINED" />
         </AD> 
 		<AD id="includePathInWASReqURL" name="%includePathInWASReqURL" description="%includePathInWASReqURL.desc"
             required="false" type="Boolean"
@@ -110,10 +115,11 @@
             required="false" type="Boolean"
             default="false" />
 
-        <AD id="overrideHttpAuthenticationMechanism" name="%overrideHttpAuthenticationMechanism" description="%overrideHttpAuthenticationMechanism.desc"
+        <AD id="overrideHttpAuthMethod" name="%overrideHttpAuthMethod" description="%overrideHttpAuthMethod.desc"
             required="false" type="String">
                 <Option label="BASIC" value="BASIC" />
                 <Option label="FORM" value="FORM" />
+                <Option label="CLIENT_CERT" value="CLIENT_CERT" />
         </AD> 
 
         <AD id="contextRootForFormAuthenticationMechanism" name="%contextRootForFormAuthenticationMechanism" description="%contextRootForFormAuthenticationMechanism.desc"
@@ -121,16 +127,7 @@
 
         <AD id="basicAuthenticationMechanismRealmName" name="%basicAuthenticationMechanismRealmName" description="%basicAuthenticationMechanismRealmName.desc"
             required="false" type="String" default="defaultRealm" />
-
-        <AD id="jaspicSessionForMechanismsEnabled" name="%jaspicSessionForMechanismsEnabled" description="%jaspicSessionForMechanismsEnabled.desc"
-            required="false" type="Boolean"
-            default="true" />
-
-        <AD id="jaspicSessionCookieName" name="%jaspicSessionCookieName" description="%jaspicSessionCookieName.desc"
-            required="false" type="String"
-            default="jaspicSession" />
     </OCD>
-
     <Designate pid="com.ibm.ws.webcontainer.security.WebAppSecurityCollaboratorImpl">
         <Object ocdref="com.ibm.ws.webcontainer.security.metatype"/>
     </Designate>

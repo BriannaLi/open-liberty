@@ -17,7 +17,7 @@ import java.io.File;
 
 import org.junit.ClassRule;
 import org.junit.Test;
-
+import org.junit.runner.RunWith;
 import org.jboss.shrinkwrap.api.Archive;
 import org.jboss.shrinkwrap.api.ArchivePaths;
 import org.jboss.shrinkwrap.api.ShrinkWrap;
@@ -33,6 +33,10 @@ import com.ibm.ws.fat.util.LoggingTest;
 import com.ibm.ws.fat.util.ShrinkWrapSharedServer;
 import com.ibm.ws.fat.util.browser.WebBrowser;
 
+import componenttest.custom.junit.runner.FATRunner;
+import componenttest.custom.junit.runner.Mode;
+import componenttest.custom.junit.runner.Mode.TestMode;
+
 /**
  * Tests the case where a customer provides their own SAX parser factory.
  * It is possible that an application that contains a beans.xml might also
@@ -45,6 +49,7 @@ import com.ibm.ws.fat.util.browser.WebBrowser;
  * can parse the beans.xml file without loading the customer's SAXParserFactory
  * when one is supplied.
  */
+@RunWith(FATRunner.class)
 public class CustomerProvidedXMLParserFactoryTest extends LoggingTest {
 
     @ClassRule
@@ -76,6 +81,7 @@ public class CustomerProvidedXMLParserFactoryTest extends LoggingTest {
      * @throws Exception
      */
     @Test
+    @Mode(TestMode.FULL)
     public void testBeansXMLIsParsedWithoutUsingCustomerSAXParserFactory() throws Exception {
         assertTrue("App with custom SAXParserFactory did not start successfully",
                    SHARED_SERVER.getLibertyServer().findStringsInLogs("CWWKZ0001I.*userSAXParserFactory").size() > 0);

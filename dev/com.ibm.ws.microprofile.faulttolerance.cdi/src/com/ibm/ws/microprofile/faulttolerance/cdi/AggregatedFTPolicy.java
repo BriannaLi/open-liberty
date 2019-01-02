@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2017 IBM Corporation and others.
+ * Copyright (c) 2017, 2018 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -10,6 +10,8 @@
  *******************************************************************************/
 package com.ibm.ws.microprofile.faulttolerance.cdi;
 
+import java.lang.reflect.Method;
+
 import org.eclipse.microprofile.faulttolerance.ExecutionContext;
 
 import com.ibm.ws.microprofile.faulttolerance.spi.BulkheadPolicy;
@@ -18,6 +20,7 @@ import com.ibm.ws.microprofile.faulttolerance.spi.Executor;
 import com.ibm.ws.microprofile.faulttolerance.spi.ExecutorBuilder;
 import com.ibm.ws.microprofile.faulttolerance.spi.FallbackPolicy;
 import com.ibm.ws.microprofile.faulttolerance.spi.FaultToleranceProvider;
+import com.ibm.ws.microprofile.faulttolerance.spi.MetricRecorderProvider.AsyncType;
 import com.ibm.ws.microprofile.faulttolerance.spi.RetryPolicy;
 import com.ibm.ws.microprofile.faulttolerance.spi.TimeoutPolicy;
 
@@ -26,7 +29,8 @@ import com.ibm.ws.microprofile.faulttolerance.spi.TimeoutPolicy;
  */
 public class AggregatedFTPolicy {
 
-    private boolean asynchronous = false;
+    private Method method = null;
+    private Class<?> asyncResultWrapper = null;
     private RetryPolicy retryPolicy = null;
     private CircuitBreakerPolicy circuitBreakerPolicy = null;
     private BulkheadPolicy bulkheadPolicy = null;
@@ -35,10 +39,17 @@ public class AggregatedFTPolicy {
     private Executor<?> executor;
 
     /**
+     * @return the method this policy will be applied to
+     */
+    public void setMethod(Method method) {
+        this.method = method;
+    }
+
+    /**
      * @param asynchronous
      */
-    public void setAsynchronous(boolean asynchronous) {
-        this.asynchronous = asynchronous;
+    public void setAsynchronousResultWrapper(Class<?> asyncResultWrapper) {
+        this.asyncResultWrapper = asyncResultWrapper;
     }
 
     /**
@@ -70,10 +81,17 @@ public class AggregatedFTPolicy {
     }
 
     /**
+     * @return the method this policy is applied to
+     */
+    public Method getMethod() {
+        return method;
+    }
+
+    /**
      * @return
      */
     public boolean isAsynchronous() {
-        return asynchronous;
+        return asyncResultWrapper != null;
     }
 
     /**
@@ -115,18 +133,19 @@ public class AggregatedFTPolicy {
     /**
      * @return
      */
-    public Executor<?> getExecutor() {
+    @SuppressWarnings("unchecked")
+    public Executor<Object> getExecutor() {
         synchronized (this) {
             if (this.executor == null) {
                 ExecutorBuilder<ExecutionContext, ?> builder = newBuilder();
 
                 if (isAsynchronous()) {
-                    this.executor = builder.buildAsync();
+                    this.executor = builder.buildAsync(asyncResultWrapper);
                 } else {
                     this.executor = builder.build();
                 }
             }
-            return this.executor;
+            return (Executor<Object>) this.executor;
         }
     }
 
@@ -158,6 +177,15 @@ public class AggregatedFTPolicy {
         if (bulkheadPolicy != null) {
             builder.setBulkheadPolicy(bulkheadPolicy);
         }
+
+        builder.setMetricRecorder(FaultToleranceCDIComponent.getMetricProvider().getMetricRecorder(method,
+                                                                                        retryPolicy,
+                                                                                        circuitBreakerPolicy,
+                                                                                        timeoutPolicy,
+                                                                                        bulkheadPolicy,
+                                                                                        fallbackPolicy,
+                                                                                        isAsynchronous() ? AsyncType.ASYNC : AsyncType.SYNC));
+
         return builder;
     }
 

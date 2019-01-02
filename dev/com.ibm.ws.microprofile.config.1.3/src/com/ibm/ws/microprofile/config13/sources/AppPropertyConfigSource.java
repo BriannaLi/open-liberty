@@ -31,9 +31,14 @@ import com.ibm.ws.microprofile.config13.interfaces.Config13Constants;
  * A ConfigSource which returns values from appProperties elements in the server.xml file e.g.
  *
  * <application location="serverXMLApp.war">
- * <appProperties serverXMLKey1="serverXMLValue1"/>
- * <appProperties serverXMLKey1="serverXMLValue1a" serverXMLKey2="serverXMLValue2" serverXMLKey3="serverXMLValue3"/>
- * <appProperties serverXMLKey1="serverXMLValue1b" serverXMLKey4="serverXMLValue4"/>
+ * <appProperties>
+ * <property name="serverXMLKey1" value="serverXMLValue1"/>
+ * <property name="serverXMLKey1" value="serverXMLValue1a"/>
+ * <property name="serverXMLKey2" value="serverXMLValue2"/>
+ * <property name="serverXMLKey3" value="serverXMLValue3"/>
+ * <property name="serverXMLKey1" value="serverXMLValue1b"/>
+ * <property name="serverXMLKey4" value="serverXMLValue4"/>
+ * </appProperties>
  * </application>
  *
  * Result should be
@@ -62,32 +67,44 @@ public class AppPropertyConfigSource extends InternalConfigSource implements Dyn
         Map<String, String> props = new HashMap<String, String>();
 
         SortedSet<Configuration> osgiConfigs = getOSGiConfigurations();
-        for (Configuration osgiConfig : osgiConfigs) {
+        if (osgiConfigs != null) {//osgiConfigs could be null if not inside an OSGi framework, e.g. unit test
+            for (Configuration osgiConfig : osgiConfigs) {
+                // Locate name/value pairs in the config objects and place them in the map.
+                Dictionary<String, Object> dict = osgiConfig.getProperties();
+                Enumeration<String> keys = dict.keys();
 
-            Dictionary<String, Object> dict = osgiConfig.getProperties();
+                Object myKey = null;
+                Object myValue = null;
+                while (keys.hasMoreElements()) {
+                    String key = keys.nextElement();
 
-            Enumeration<String> keys = dict.keys();
-            while (keys.hasMoreElements()) {
-                String key = keys.nextElement();
-                if (!OSGiConfigUtils.isSystemKey(key)) {
-                    Object value = dict.get(key);
-                    props.put(key, value.toString());
+                    if (key.equals("name"))
+                        myKey = dict.get(key);
+                    if (key.equals("value"))
+                        myValue = dict.get(key);
+                    if (myKey != null && myValue != null) {
+                        props.put(myKey.toString(), myValue.toString());
+                    }
                 }
             }
         }
+
         return props;
     }
 
     private SortedSet<Configuration> getOSGiConfigurations() {
         PrivilegedAction<SortedSet<Configuration>> configAction = () -> {
+            SortedSet<Configuration> osgiConfigs = null;
             if (bundleContext == null) {
                 bundleContext = OSGiConfigUtils.getBundleContext(getClass());
             }
-            if (applicationName == null) {
-                applicationName = OSGiConfigUtils.getApplicationName(bundleContext);
-            }
-            SortedSet<Configuration> osgiConfigs = OSGiConfigUtils.getConfigurations(bundleContext, applicationName);
+            if (bundleContext != null) { //bundleContext could be null if not inside an OSGi framework, e.g. unit test
+                if (applicationName == null) {
+                    applicationName = OSGiConfigUtils.getApplicationName(bundleContext);
+                }
 
+                osgiConfigs = OSGiConfigUtils.getConfigurations(bundleContext, applicationName);
+            }
             return osgiConfigs;
         };
 

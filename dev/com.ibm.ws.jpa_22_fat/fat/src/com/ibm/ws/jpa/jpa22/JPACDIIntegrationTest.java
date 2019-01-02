@@ -18,12 +18,14 @@ import org.junit.BeforeClass;
 import org.junit.runner.RunWith;
 
 import com.ibm.websphere.simplicity.ShrinkHelper;
+import com.ibm.ws.jpa.FATSuite;
 
 import cdi.web.ELIServlet;
 import componenttest.annotation.Server;
 import componenttest.annotation.TestServlet;
 import componenttest.custom.junit.runner.FATRunner;
 import componenttest.topology.impl.LibertyServer;
+import componenttest.topology.utils.PrivHelper;
 
 /**
  * Test cases for verifying JPA + CDI integration, by using the application-server provided
@@ -43,6 +45,8 @@ public class JPACDIIntegrationTest {
     public static void setUp() throws Exception {
         final String resPath = "test-applications/jpa22/" + APP_NAME + "/resources/";
 
+        PrivHelper.generateCustomPolicy(server1, FATSuite.JAXB_PERMS);
+
         WebArchive app = ShrinkWrap.create(WebArchive.class, APP_NAME + ".war");
         app.addPackage("cdi.web");
         app.addPackage("cdi.model");
@@ -55,6 +59,7 @@ public class JPACDIIntegrationTest {
 
     @AfterClass
     public static void tearDown() throws Exception {
+        server1.dumpServer("cdi");
         server1.stopServer("CWWJP9991W"); // From Eclipselink drop-and-create tables option
     }
 }

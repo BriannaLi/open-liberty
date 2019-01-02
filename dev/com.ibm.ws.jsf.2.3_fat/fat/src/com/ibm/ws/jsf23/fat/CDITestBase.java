@@ -240,7 +240,7 @@ public abstract class CDITestBase {
         LOG.info("Factory output value: " + output);
 
         // Verify we are matching each of the factories configured in faces-config.xml ( or Annotated configuration populator config)
-        assertTrue("Did not find FactoryCount:11 in response.", output.contains("FactoryCount:12"));
+        assertTrue("Did not find FactoryCount:14 in response.", output.contains("FactoryCount:14"));
 
         // Format:  Class | Method | Method injected class: Field injected class : <option> constructor injected class
 
@@ -256,6 +256,8 @@ public abstract class CDITestBase {
         findInResponse(output, "CustomVisitContextFactory|getVisitContext|FactoryDepBean:FactoryAppBean:PostConstructCalled");
         findInResponse(output, "CustomPhaseListener|beforePhase|FactoryDepBean:FactoryAppBean:PostConstructCalled");
         findInResponse(output, "CustomSystemEventListener|processEvent|FactoryDepBean:FactoryAppBean:PostConstructCalled");
+        findInResponse(output, "CustomClientWindowFactory|getClientWindow|FactoryDepBean:FactoryAppBean:PostConstructCalled");
+        findInResponse(output, "CustomFaceletCacheFactory|getFaceletCache|FactoryDepBean:FactoryAppBean:PostConstructCalled");
 
     }
 
@@ -296,10 +298,21 @@ public abstract class CDITestBase {
      *
      * @throws Exception
      */
-    protected void testCustomStateManagerInjectionsByApp(String app, LibertyServer server) throws Exception {
+    protected void testCustomStateManagerInjectionsByApp(String contextRoot, LibertyServer server) throws Exception {
 
+        WebClient webClient = new WebClient();
+
+        // Construct the URL for the test
+        URL url = JSFUtils.createHttpUrl(server, contextRoot, "NavigationHandler.jsf");
+        HtmlPage page = (HtmlPage) webClient.getPage(url);
+
+        if (page == null) {
+            Assert.fail("NavigationHandler.jsf did not render properly.");
+        }
+
+        // The above request should cause the message below to be output in the log
         String msg = "JSF23: CustomStateManager isSavingStateInClient called: result- class com.ibm.ws.jsf23.fat.cdi.common.beans.injected.MethodBean::class com.ibm.ws.jsf23.fat.cdi.common.beans.injected.ManagedBeanFieldBean::PostConstructCalled:/"
-                     + app;
+                     + contextRoot;
 
         // Check the trace.log to see if the proper InjectionProvider is being used.
         String isStateManagerMessage = server.waitForStringInLog(msg);

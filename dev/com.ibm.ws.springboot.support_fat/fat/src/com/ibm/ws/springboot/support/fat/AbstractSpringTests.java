@@ -34,7 +34,7 @@ import org.junit.rules.TestName;
 import com.ibm.websphere.simplicity.RemoteFile;
 import com.ibm.websphere.simplicity.config.HttpEndpoint;
 import com.ibm.websphere.simplicity.config.KeyStore;
-import com.ibm.websphere.simplicity.config.SSLConfig;
+import com.ibm.websphere.simplicity.config.SSL;
 import com.ibm.websphere.simplicity.config.ServerConfiguration;
 import com.ibm.websphere.simplicity.config.SpringBootApplication;
 import com.ibm.websphere.simplicity.config.VirtualHost;
@@ -60,13 +60,15 @@ public abstract class AbstractSpringTests {
     public static final String ID_TRUST_STORE = "springBootTrustStore-";
 
     public static final String SPRING_BOOT_15_APP_BASE = "com.ibm.ws.springboot.support.version15.test.app.jar";
-    public static final String SPRING_BOOT_15_APP_WAR = "com.ibm.ws.springboot.support.version15.test.war.app-0.0.1-SNAPSHOT.war";
-    public static final String SPRING_BOOT_15_APP_JAVA = "com.ibm.ws.springboot.support.version15.test.java.app.jar";
-    public static final String SPRING_BOOT_15_APP_WEBANNO = "com.ibm.ws.springboot.support.version15.test.webanno.app.jar";
-    public static final String SPRING_BOOT_15_APP_WEBSOCKET = "com.ibm.ws.springboot.support.version15.test.websocket.app.jar";
-    public static final String SPRING_BOOT_15_APP_ACTUATOR = "com.ibm.ws.springboot.support.version15.test.actuator.app.jar";
+    public static final String SPRING_BOOT_20_APP_WAR = "com.ibm.ws.springboot.support.version20.test.war.app-0.0.1-SNAPSHOT.war";
+    public static final String SPRING_BOOT_20_APP_JAVA = "com.ibm.ws.springboot.support.version20.test.java.app-0.0.1-SNAPSHOT.jar";
+    public static final String SPRING_BOOT_20_APP_WEBANNO = "com.ibm.ws.springboot.support.version20.test.webanno.app-0.0.1-SNAPSHOT.jar";
+    public static final String SPRING_BOOT_20_APP_WEBSOCKET = "com.ibm.ws.springboot.support.version20.test.websocket.app-0.0.1-SNAPSHOT.jar";
+    public static final String SPRING_BOOT_20_APP_ACTUATOR = "com.ibm.ws.springboot.support.version20.test.actuator.app-0.0.1-SNAPSHOT.jar";
+    public static final String SPRING_BOOT_20_APP_MULTI_CONTEXT = "com.ibm.ws.springboot.support.version20.test.multi.context.app-0.0.1-SNAPSHOT.jar";
     public static final String SPRING_BOOT_20_APP_BASE = "com.ibm.ws.springboot.support.version20.test.app-0.0.1-SNAPSHOT.jar";
-
+    public static final String SPRING_BOOT_20_APP_WEBFLUX = "com.ibm.ws.springboot.support.version20.test.webflux.app-0.0.1-SNAPSHOT.jar";
+    public static final String SPRING_BOOT_20_APP_WEBFLUX_WRONG_VERSION = "com.ibm.ws.springboot.support.version20.test.webflux.wrong.version.app-0.0.1-SNAPSHOT.jar";
     public static final String LIBERTY_USE_DEFAULT_HOST = "server.liberty.use-default-host";
     public static final String SPRING_LIB_INDEX_CACHE = "lib.index.cache";
     public static final String SPRING_WORKAREA_DIR = "workarea/spring/";
@@ -76,6 +78,7 @@ public abstract class AbstractSpringTests {
     public static final int EXPECTED_HTTP_PORT = 8081;
     public static final int DEFAULT_HTTP_PORT;
     public static final int DEFAULT_HTTPS_PORT;
+    public static final String javaVersion;
 
     public static LibertyServer server = LibertyServerFactory.getLibertyServer("com.ibm.ws.springboot.support.fat.SpringBootTests");
     static {
@@ -85,16 +88,19 @@ public abstract class AbstractSpringTests {
         // Tests can change this, but it will be reset by the @After method resetDefaultPorts
         server.setHttpDefaultPort(EXPECTED_HTTP_PORT);
         server.setHttpDefaultSecurePort(EXPECTED_HTTP_PORT);
+        javaVersion = System.getProperty("java.version");
 
     }
     public static final AtomicBoolean serverStarted = new AtomicBoolean();
     public static final Collection<RemoteFile> dropinFiles = new ArrayList<>();
     private static final Properties bootStrapProperties = new Properties();
     private static File bootStrapPropertiesFile;
+    protected static final List<String> extraServerArgs = new ArrayList<>();
 
     @AfterClass
     public static void stopServer() throws Exception {
         stopServer(true);
+        extraServerArgs.clear();
     }
 
     public static void stopServer(boolean cleanupApps, String... expectedFailuresRegExps) throws Exception {
@@ -186,23 +192,9 @@ public abstract class AbstractSpringTests {
     public void configureServer() throws Exception {
         System.out.println("Configuring server for " + testName.getMethodName());
         if (serverStarted.compareAndSet(false, true)) {
-            ServerConfiguration config = server.getServerConfiguration();
+            server.setExtraArgs(extraServerArgs);
 
-            // START CLEAR out configs from previous tests
-            List<SpringBootApplication> applications = config.getSpringBootApplications();
-            applications.clear();
-            Set<String> features = config.getFeatureManager().getFeatures();
-            features.clear();
-            features.addAll(getFeatures());
-            List<VirtualHost> virtualHosts = config.getVirtualHosts();
-            virtualHosts.clear();
-            List<HttpEndpoint> endpoints = config.getHttpEndpoints();
-            endpoints.clear();
-            List<SSLConfig> ssls = config.getSsls();
-            ssls.clear();
-            List<KeyStore> keystores = config.getKeyStores();
-            keystores.clear();
-            // END CLEAR
+            ServerConfiguration config = getServerConfiguration();
 
             RemoteFile appFile = getApplicationFile();
             boolean dropinsTest = false;
@@ -243,7 +235,7 @@ public abstract class AbstractSpringTests {
                     if (!useDefaultVirtualHost()) {
                         app.getApplicationArguments().add("--" + LIBERTY_USE_DEFAULT_HOST + "=false");
                     }
-                    applications.add(app);
+                    config.getSpringBootApplications().add(app);
                     break;
                 }
                 default:
@@ -273,9 +265,16 @@ public abstract class AbstractSpringTests {
         server.setHttpDefaultSecurePort(EXPECTED_HTTP_PORT);
     }
 
-    private void configureBootStrapProperties(boolean dropinsTest) throws Exception {
+    protected void configureBootStrapProperties(boolean dropinsTest) throws Exception {
+        configureBootStrapProperties(dropinsTest, true);
+
+    }
+
+    protected void configureBootStrapProperties(boolean dropinsTest, boolean addDefaultProps) throws Exception {
         bootStrapPropertiesFile = new File(server.getFileFromLibertyServerRoot("bootstrap.properties").getAbsolutePath());
-        bootStrapProperties.putAll(getDefaultBootStrapProperties());
+        if (addDefaultProps) {
+            bootStrapProperties.putAll(getDefaultBootStrapProperties());
+        }
         bootStrapProperties.putAll(getBootStrapProperties());
         if (dropinsTest && !useDefaultVirtualHost()) {
             bootStrapProperties.put(LIBERTY_USE_DEFAULT_HOST, Boolean.FALSE.toString());
@@ -283,7 +282,28 @@ public abstract class AbstractSpringTests {
         try (OutputStream out = new FileOutputStream(bootStrapPropertiesFile)) {
             bootStrapProperties.store(out, "");
         }
+    }
 
+    protected ServerConfiguration getServerConfiguration() throws Exception {
+        ServerConfiguration config = server.getServerConfiguration();
+
+        // START CLEAR out configs from previous tests
+        List<SpringBootApplication> applications = config.getSpringBootApplications();
+        applications.clear();
+        Set<String> features = config.getFeatureManager().getFeatures();
+        features.clear();
+        features.addAll(getFeatures());
+        List<VirtualHost> virtualHosts = config.getVirtualHosts();
+        virtualHosts.clear();
+        List<HttpEndpoint> endpoints = config.getHttpEndpoints();
+        endpoints.clear();
+        List<SSL> ssls = config.getSsls();
+        ssls.clear();
+        List<KeyStore> keystores = config.getKeyStores();
+        keystores.clear();
+        // END CLEAR
+
+        return config;
     }
 
 }

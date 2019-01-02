@@ -26,6 +26,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
@@ -94,6 +95,7 @@ import com.ibm.ws.kernel.provisioning.BundleRepositoryRegistry.BundleRepositoryH
 import com.ibm.ws.kernel.provisioning.LibertyBootRuntime;
 import com.ibm.ws.kernel.provisioning.ProductExtension;
 import com.ibm.ws.kernel.provisioning.ProductExtensionInfo;
+import com.ibm.ws.kernel.service.util.JavaInfo;
 import com.ibm.ws.runtime.update.RuntimeUpdateManager;
 import com.ibm.ws.runtime.update.RuntimeUpdateNotification;
 import com.ibm.wsspi.kernel.service.location.VariableRegistry;
@@ -269,6 +271,8 @@ public class FeatureManager implements FeatureProvisioner, FrameworkReady, Manag
 
     private volatile LibertyBootRuntime libertyBoot;
 
+    private FrameworkWiring frameworkWiring;
+
     /**
      * FeatureManager is instantiated by declarative services.
      */
@@ -293,7 +297,9 @@ public class FeatureManager implements FeatureProvisioner, FrameworkReady, Manag
     protected void activate(ComponentContext componentContext, Map<String, Object> properties) {
         setSupportedProcessTypes(componentContext);
         bundleContext = componentContext.getBundleContext();
-        fwStartLevel = bundleContext.getBundle(Constants.SYSTEM_BUNDLE_LOCATION).adapt(FrameworkStartLevel.class);
+        Bundle systemBundle = bundleContext.getBundle(Constants.SYSTEM_BUNDLE_LOCATION);
+        fwStartLevel = systemBundle.adapt(FrameworkStartLevel.class);
+        frameworkWiring = systemBundle.adapt(FrameworkWiring.class);
         packageInspector.activate(bundleContext);
 
         variableRegistry.addVariable(featureGroupUsr, WsLocationConstants.SYMBOL_USER_EXTENSION_DIR + "lib/features/");
@@ -663,7 +669,7 @@ public class FeatureManager implements FeatureProvisioner, FrameworkReady, Manag
                 Tr.info(tc, "STARTING_AUDIT");
             }
 
-            preInstalledFeatures = featureRepository.getInstalledFeatures();
+            preInstalledFeatures = new HashSet<>(featureRepository.getInstalledFeatures());
 
             String pkgs = bundleContext.getProperty("com.ibm.ws.kernel.classloading.apiPackagesToHide");
             Set<String> apiPkgsToIgnore = pkgs == null ? null : new HashSet<String>(Arrays.asList(pkgs.split(",")));
@@ -832,7 +838,7 @@ public class FeatureManager implements FeatureProvisioner, FrameworkReady, Manag
                                      Set<String> deletedPublicAutoFeatures) {
         writeServiceMessages();
 
-        Set<String> postInstalledFeatures = featureRepository.getInstalledFeatures();
+        Set<String> postInstalledFeatures = new HashSet<>(featureRepository.getInstalledFeatures());
 
         postInstalledFeatures.removeAll(preInstalledFeatures);
         Set<String> installedPublicFeatures = Collections.emptySet();
@@ -1120,8 +1126,9 @@ public class FeatureManager implements FeatureProvisioner, FrameworkReady, Manag
 
         boolean featuresHaveChanges = true;
         boolean appForceRestartSet = false;
+        final boolean sameJavaSpecVersion = sameJavaSpecVersion();
         try {
-            if (areConfiguredFeaturesGood(newConfiguredFeatures)) {
+            if (areConfiguredFeaturesGood(newConfiguredFeatures) && sameJavaSpecVersion) {
                 featuresHaveChanges = false;
                 goodFeatures = preInstalledFeatures;
             } else {
@@ -1133,7 +1140,8 @@ public class FeatureManager implements FeatureProvisioner, FrameworkReady, Manag
                 goodFeatures = result.getResolvedFeatures();
 
                 // If the final list of good features matches the currently installed features, we don't need to do anything else.
-                if (!featureRepository.featureSetEquals(goodFeatures)) {
+                // NOTE: we need to recompute the bundleCache if the java spec version has changed since last launch
+                if (!sameJavaSpecVersion || !featureRepository.featureSetEquals(goodFeatures)) {
 
                     if (installStatus.canContinue(continueOnError)) {
 
@@ -1268,6 +1276,10 @@ public class FeatureManager implements FeatureProvisioner, FrameworkReady, Manag
         return status;
     }
 
+    private boolean sameJavaSpecVersion() {
+        return Objects.equals(JavaInfo.majorVersion(), bundleCache.getJavaSpecVersion());
+    }
+
     /**
      * @param newConfiguredFeatures
      * @return
@@ -1310,7 +1322,6 @@ public class FeatureManager implements FeatureProvisioner, FrameworkReady, Manag
 
         Map<String, Set<String>> javaVersiontoFeatureMap = new HashMap<String, Set<String>>();
 
-        FrameworkWiring frameworkWiring = bundleContext.getBundle(Constants.SYSTEM_BUNDLE_LOCATION).adapt(FrameworkWiring.class);
         for (Bundle bundle : unresolvedBundles) {
             BundleRevision revision = bundle.adapt(BundleRevision.class);
             // may be null if the bundle got uninstalled
@@ -1924,4 +1935,10 @@ public class FeatureManager implements FeatureProvisioner, FrameworkReady, Manag
     public void refreshFeatures(Filter filter) {
         refreshFeatures();
     }
+
+    boolean missingRequiredJava(FeatureResource fr) {
+        Integer requiredJava = fr.getRequireJava();
+        return requiredJava == null ? false : JavaInfo.majorVersion() < requiredJava;
+    }
+
 }

@@ -12,10 +12,13 @@ package com.ibm.ws.webcontainer.security;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 
+import javax.security.auth.Subject;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
@@ -23,8 +26,12 @@ import com.ibm.websphere.ras.Tr;
 import com.ibm.websphere.ras.TraceComponent;
 import com.ibm.websphere.ras.annotation.Sensitive;
 import com.ibm.websphere.security.audit.AuditEvent;
+import com.ibm.websphere.security.cred.WSCredential;
 import com.ibm.ws.common.internal.encoder.Base64Coder;
 import com.ibm.ws.security.SecurityService;
+import com.ibm.ws.security.authentication.AuthenticationConstants;
+import com.ibm.ws.security.authentication.cache.AuthCacheService;
+import com.ibm.ws.security.authentication.principals.WSPrincipal;
 import com.ibm.ws.security.authentication.tai.TAIService;
 import com.ibm.ws.webcontainer.security.internal.SSOAuthenticator;
 import com.ibm.ws.webcontainer.security.internal.TAIAuthenticator;
@@ -32,6 +39,7 @@ import com.ibm.ws.webcontainer.security.metadata.SecurityMetadata;
 import com.ibm.wsspi.kernel.service.utils.AtomicServiceReference;
 import com.ibm.wsspi.kernel.service.utils.ConcurrentServiceReferenceMap;
 import com.ibm.wsspi.security.tai.TrustAssociationInterceptor;
+import com.ibm.wsspi.security.token.SingleSignonToken;
 
 /**
  * The responsibility of this WebProviderAuthenticatorProxy is to authenticate request with TAI and SSO
@@ -40,7 +48,6 @@ import com.ibm.wsspi.security.tai.TrustAssociationInterceptor;
 public class WebProviderAuthenticatorProxy implements WebAuthenticator {
 
     private static final TraceComponent tc = Tr.register(WebProviderAuthenticatorProxy.class);
-    private static final String WEB_APP_SECURITY_CONFIG = "com.ibm.ws.webcontainer.security.WebAppSecurityConfig";
 
     AuthenticationResult JASPI_CONT = new AuthenticationResult(AuthResult.CONTINUE, "JASPI said continue...");
     protected final AtomicServiceReference<SecurityService> securityServiceRef;
@@ -85,49 +92,69 @@ public class WebProviderAuthenticatorProxy implements WebAuthenticator {
      * @param webRequest
      * @return
      */
-    protected AuthenticationResult handleJaspi(WebRequest webRequest, HashMap<String, Object> props) {
+    protected AuthenticationResult handleJaspi(final WebRequest webRequest, final HashMap<String, Object> props) {
         AuthenticationResult authResult = JASPI_CONT;
         if (webAuthenticatorRef != null) {
-            WebAuthenticator jaspiAuthenticator = webAuthenticatorRef.getService("com.ibm.ws.security.jaspi");
-            if (jaspiAuthenticator != null) {
+            JaspiService jaspiService = (JaspiService) webAuthenticatorRef.getService("com.ibm.ws.security.jaspi");
+            if (jaspiService != null) {
                 HttpServletRequest request = webRequest.getHttpServletRequest();
-                request.setAttribute(WEB_APP_SECURITY_CONFIG, webAppSecurityConfig);
-
                 if (props == null) {
-                    authResult = authenticateForOtherMechanisms(webRequest, authResult, jaspiAuthenticator);
+                    authResult = authenticateForOtherMechanisms(webRequest, authResult, jaspiService);
                 } else {
-                    authResult = authenticateForFormMechanism(webRequest, props, jaspiAuthenticator);
+                    authResult = authenticateForFormMechanism(webRequest, props, jaspiService);
                 }
 
-                request.removeAttribute(WEB_APP_SECURITY_CONFIG);
-
                 if (authResult.getStatus() == AuthResult.SUCCESS) {
-                    processAuthenticationSuccess(webRequest, props, authResult);
+                    if (System.getSecurityManager() == null) {
+                        processAuthenticationSuccess(webRequest, props, authResult);
+                    } else {
+                        final AuthenticationResult authResultFinal = authResult;
+                        AccessController.doPrivileged(new PrivilegedAction<Object>() {
+                            @Override
+                            public Object run() {
+                                processAuthenticationSuccess(webRequest, props, authResultFinal);
+                                return null;
+                            }
+                        });
+                    }
                 }
             }
         }
         return authResult;
     }
 
-    private AuthenticationResult authenticateForOtherMechanisms(WebRequest webRequest, AuthenticationResult authResult, WebAuthenticator jaspiAuthenticator) {
-        boolean isNewAuth = ((JaspiService) jaspiAuthenticator).isProcessingNewAuthentication(webRequest.getHttpServletRequest());
-        // first see if we have an ltpa token (from form login)
-        if (!isNewAuth) {
-            authResult = handleSSO(webRequest, null);
+    private AuthenticationResult authenticateForOtherMechanisms(WebRequest webRequest, AuthenticationResult authResult, JaspiService jaspiService) {
+        authResult = handleSSO(webRequest, null);
+        if (AuthResult.SUCCESS.equals(authResult.getStatus()) && webAppSecurityConfig.isUseLtpaSSOForJaspic()) {
+            return authResult;
         }
-        if (isNewAuth || authResult.getStatus() == AuthResult.CONTINUE) { // no ltpatoken
-            // JASPI session requires the subject from the previous invocation
-            // to be passed in to the JASPI provider on subsequent calls
-            authResult = handleSSO(webRequest, webAppSecurityConfig.getJaspicSessionCookieName());
-            if (!isNewAuth && authResult.getStatus() == AuthResult.SUCCESS) {
+
+        Subject subject = authResult.getSubject();
+        List<String> tokenUsage = null;
+        if (subject != null) {
+            tokenUsage = getTokenUsageFromSSOToken(subject, webAppSecurityConfig.createSSOCookieHelper());
+            // in order to avoid using the cached subject which was created as a result of SSO from non JASPIC LTPAToken,
+            // clear the cached object if LTPAToken is not created by JASPIC.
+            if (!isJaspicSessionOrJsr375Form(tokenUsage)) {
+                // clear the cache.
+                clearCacheData(subject);
+            }
+        }
+        boolean isNewAuth = jaspiService.isProcessingNewAuthentication(webRequest.getHttpServletRequest());
+
+        if (!isJaspicForm(tokenUsage)) {
+            if (!isNewAuth && isJaspicSessionOrJsr375Form(tokenUsage)) {
                 Map<String, Object> requestProps = new HashMap<String, Object>();
-                requestProps.put("javax.servlet.http.registerSession.subject", authResult.getSubject());
+                requestProps.put("javax.servlet.http.registerSession.subject", subject);
                 webRequest.setProperties(requestProps);
             }
-
-            authResult = jaspiAuthenticator.authenticate(webRequest);
-            if (authResult.getStatus() != AuthResult.CONTINUE) {
-                if (!isNewAuth) {
+            authResult = jaspiService.authenticate(webRequest);
+        }
+        AuthResult result = authResult.getStatus();
+        if (result != AuthResult.CONTINUE) {
+            if (!isNewAuth) {
+                if ("BASIC".equals(authResult.getAuditAuthConfigProviderAuthType())) {
+                    // check BA header, and if it exists, use denied and set username, otherwise, challenge
                     String authHeader = webRequest.getHttpServletRequest().getHeader("Authorization");
                     if (authHeader != null && authHeader.startsWith("Basic ")) {
                         String basicAuthHeader = decodeCookieString(authHeader.substring(6));
@@ -135,21 +162,28 @@ public class WebProviderAuthenticatorProxy implements WebAuthenticator {
                         String uid = basicAuthHeader.substring(0, index);
                         authResult.setAuditCredValue(uid);
                     }
-                    authResult.setAuditCredType(AuditEvent.CRED_TYPE_JASPIC);
-                } else {
-                    //TODO: is audit event required?? if so, how to get uid??
+                    if (result == AuthResult.SEND_401) {
+                        authResult.setAuditOutcome(AuditEvent.OUTCOME_CHALLENGE);
+                    }
                 }
+                if (result == AuthResult.RETURN) {
+                    authResult.setAuditOutcome(AuditEvent.OUTCOME_DENIED);
+                }
+                authResult.setAuditCredType(AuditEvent.CRED_TYPE_JASPIC);
+            } else {
+                //TODO: is audit event required?? if so, how to get uid??
             }
         }
         return authResult;
     }
 
-    private AuthenticationResult authenticateForFormMechanism(WebRequest webRequest, HashMap<String, Object> props, WebAuthenticator jaspiAuthenticator) {
+    private AuthenticationResult authenticateForFormMechanism(WebRequest webRequest, HashMap<String, Object> props, JaspiService jaspiService) {
         AuthenticationResult authResult;
         try {
-            authResult = jaspiAuthenticator.authenticate(webRequest.getHttpServletRequest(),
-                                                         webRequest.getHttpServletResponse(),
-                                                         props);
+            HttpServletRequest req = webRequest.getHttpServletRequest();
+            authResult = jaspiService.authenticate(req,
+                                                   webRequest.getHttpServletResponse(),
+                                                   props);
             if (authResult.getStatus() != AuthResult.CONTINUE) {
                 String authHeader = webRequest.getHttpServletRequest().getHeader("Authorization");
                 if (authHeader != null && authHeader.startsWith("Basic ")) {
@@ -157,8 +191,15 @@ public class WebProviderAuthenticatorProxy implements WebAuthenticator {
                     int index = basicAuthHeader.indexOf(':');
                     String uid = basicAuthHeader.substring(0, index);
                     authResult.setAuditCredValue(uid);
+                } else {
+                    // best effort to set the user id for audit message upon error.
+                    String username = req.getParameter("j_username");
+                    if (username != null) {
+                        authResult.setAuditCredValue(username);
+                    }
                 }
                 authResult.setAuditCredType(AuditEvent.CRED_TYPE_JASPIC);
+                authResult.setAuditOutcome(AuditEvent.OUTCOME_DENIED);
             }
         } catch (Exception e) {
             if (tc.isDebugEnabled()) {
@@ -170,41 +211,63 @@ public class WebProviderAuthenticatorProxy implements WebAuthenticator {
     }
 
     private void processAuthenticationSuccess(WebRequest webRequest, HashMap<String, Object> props, AuthenticationResult authResult) {
-        registerSessionWhenRequested(webRequest, authResult);
+        Subject subject = authResult.getSubject();
         attemptToRestorePostParams(webRequest);
-        attemptToRemoveLtpaToken(webRequest, props);
-    }
-
-    private void registerSessionWhenRequested(final WebRequest webRequest, final AuthenticationResult authResult) {
-        boolean registerSession = false;
+        boolean isRegisterSession = false;
         Map<String, Object> reqProps = webRequest.getProperties();
         if (reqProps != null) {
-            registerSession = Boolean.valueOf((String) reqProps.get("javax.servlet.http.registerSession")).booleanValue();
+            isRegisterSession = Boolean.valueOf((String) reqProps.get("javax.servlet.http.registerSession")).booleanValue();
         }
-        if (registerSession || webAppSecurityConfig.isJaspicSessionForMechanismsEnabled()) {
-            final SSOCookieHelper ssoCh = new SSOCookieHelperImpl(webAppSecurityConfig, webAppSecurityConfig.getJaspicSessionCookieName());
-            if (System.getSecurityManager() == null) {
-                ssoCh.addSSOCookiesToResponse(authResult.getSubject(), webRequest.getHttpServletRequest(), webRequest.getHttpServletResponse());
-            } else {
-                AccessController.doPrivileged(new PrivilegedAction<Object>() {
-
-                    @Override
-                    public Object run() {
-                        ssoCh.addSSOCookiesToResponse(authResult.getSubject(), webRequest.getHttpServletRequest(), webRequest.getHttpServletResponse());
-                        return null;
+        final SSOCookieHelper ssoCh = webAppSecurityConfig.createSSOCookieHelper();
+        if (isRegisterSession) {
+            registerSession(webRequest, subject, ssoCh);
+        } else {
+            List<String> tokenUsage = getTokenUsageFromSSOToken(subject, ssoCh);
+            if (isJaspicAttribute(tokenUsage)) {
+                if (isFormLogin(props)) {
+                    // since the form login flow does not propagate props form jaspicService, as an alternative,
+                    // check whether the subject contains jaspicSession attribute when form login is carried out.
+                    // if that's the case, generate SSO cookie.
+                    registerSession(webRequest, subject, ssoCh);
+                } else if (!isJaspicSession(tokenUsage)) {
+                    if (webAppSecurityConfig.isUseLtpaSSOForJaspic() == false) {
+                        // there is a sso cookie for form login, it can be deleted now.
+                        ssoCh.createLogoutCookies(webRequest.getHttpServletRequest(), webRequest.getHttpServletResponse());
                     }
-                });
+                }
+            } else {
+                if (webAppSecurityConfig.isUseLtpaSSOForJaspic() == false) {
+                    attemptToRemoveLtpaToken(webRequest, props);
+                }
             }
+        }
+    }
+
+    private void registerSession(final WebRequest webRequest, final Subject subject, final SSOCookieHelper ssoCh) {
+        if (System.getSecurityManager() == null) {
+            ssoCh.addSSOCookiesToResponse(subject, webRequest.getHttpServletRequest(), webRequest.getHttpServletResponse());
+        } else {
+            AccessController.doPrivileged(new PrivilegedAction<Object>() {
+                @Override
+                public Object run() {
+                    ssoCh.addSSOCookiesToResponse(subject, webRequest.getHttpServletRequest(), webRequest.getHttpServletResponse());
+                    return null;
+                }
+            });
         }
     }
 
     private HttpServletResponse attemptToRestorePostParams(WebRequest webRequest) {
         HttpServletResponse res = webRequest.getHttpServletResponse();
         if (!res.isCommitted()) {
-            PostParameterHelper postParameterHelper = new PostParameterHelper(webAppSecurityConfig);
-            postParameterHelper.restore(webRequest.getHttpServletRequest(), res);
+            restorePostParams(webRequest);
         }
         return res;
+    }
+
+    protected void restorePostParams(WebRequest webRequest) {
+        PostParameterHelper postParameterHelper = new PostParameterHelper(webAppSecurityConfig);
+        postParameterHelper.restore(webRequest.getHttpServletRequest(), webRequest.getHttpServletResponse());
     }
 
     /*
@@ -212,7 +275,7 @@ public class WebProviderAuthenticatorProxy implements WebAuthenticator {
      */
     private void attemptToRemoveLtpaToken(WebRequest webRequest, HashMap<String, Object> props) {
         SSOCookieHelper ssoCh = webAppSecurityConfig.createSSOCookieHelper();
-        if (props == null || props.get("authType") == null || props.get("authType").equals("FORM_LOGIN") == false) {
+        if (!isFormLogin(props)) {
             HttpServletResponse res = webRequest.getHttpServletResponse();
             if (!res.isCommitted()) {
                 ssoCh.removeSSOCookieFromResponse(res);
@@ -322,4 +385,69 @@ public class WebProviderAuthenticatorProxy implements WebAuthenticator {
             return null;
         }
     }
+
+    private List<String> getTokenUsageFromSSOToken(final Subject subject, final SSOCookieHelper ssoCh) {
+        SingleSignonToken ssoToken = ssoCh.getDefaultSSOTokenFromSubject(subject);
+        if (ssoToken != null) {
+            String[] attrs = ssoToken.getAttributes(AuthenticationConstants.INTERNAL_AUTH_PROVIDER);
+            if (attrs != null) {
+                return Arrays.asList(attrs);
+            }
+        }
+        return null;
+    }
+
+    private boolean isJaspicSessionOrJsr375Form(List<String> attrs) {
+        if (attrs != null
+            && (attrs.contains(AuthenticationConstants.INTERNAL_AUTH_PROVIDER_JASPIC) || attrs.contains(AuthenticationConstants.INTERNAL_AUTH_PROVIDER_JSR375_FORM))) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isJaspicSession(List<String> attrs) {
+        if (attrs != null && attrs.contains(AuthenticationConstants.INTERNAL_AUTH_PROVIDER_JASPIC)) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isJaspicForm(List<String> attrs) {
+        if (attrs != null && attrs.contains(AuthenticationConstants.INTERNAL_AUTH_PROVIDER_JASPIC_FORM)) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isJaspicAttribute(List<String> attrs) {
+        if (attrs != null && (attrs.contains(AuthenticationConstants.INTERNAL_AUTH_PROVIDER_JASPIC) || attrs.contains(AuthenticationConstants.INTERNAL_AUTH_PROVIDER_JSR375_FORM)
+                              || attrs.contains(AuthenticationConstants.INTERNAL_AUTH_PROVIDER_JASPIC_FORM))) {
+            return true;
+        }
+        return false;
+    }
+
+    private boolean isFormLogin(Map<String, Object> props) {
+        if (props != null && "FORM_LOGIN".equals(props.get("authType"))) {
+            return true;
+        }
+        return false;
+    }
+
+    private void clearCacheData(Subject subject) {
+        AuthCacheService authCacheService = securityServiceRef.getService().getAuthenticationService().getAuthCacheService();
+        WSCredential credential = subject.getPublicCredentials(WSCredential.class).iterator().next();
+        try {
+            String authUserName = credential.getRealmName() + ":" + credential.getSecurityName();
+            if (tc.isDebugEnabled()) {
+                Tr.debug(tc, "Deleting cache entry of user : " + authUserName);
+            }
+            authCacheService.remove(authUserName);
+        } catch (Exception e) {
+            if (tc.isDebugEnabled()) {
+                Tr.debug(tc, "A cache entry cannot be deleted. An exception is caught : " + e);
+            }
+        }
+    }
+
 }

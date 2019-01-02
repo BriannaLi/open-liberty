@@ -16,6 +16,7 @@ import static org.junit.Assert.assertTrue;
 import java.io.File;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Scanner;
 import java.util.Set;
 
@@ -56,11 +57,13 @@ public class FeatureReplacementAction implements RepeatTestAction {
 
     private boolean forceAddFeatures = true;
     private int minJavaLevel = 7;
-    protected String currentID = toString();
+    protected String currentID = null;
     private final Set<String> servers = new HashSet<>(Arrays.asList(ALL_SERVERS));
     private final Set<String> clients = new HashSet<>(Arrays.asList(ALL_CLIENTS));
     private final Set<String> removeFeatures = new HashSet<>();
     private final Set<String> addFeatures = new HashSet<>();
+
+    public FeatureReplacementAction() {}
 
     /**
      * Remove one feature and add one feature.
@@ -133,7 +136,7 @@ public class FeatureReplacementAction implements RepeatTestAction {
      *
      * ...to be clear, this is not the opposite of addFeatures()
      *
-     * @param removeFeatures the features to be removed
+     * @param removeFeatures the features to be removed. Wildcards are supported.
      * @return this
      */
     public FeatureReplacementAction removeFeatures(Set<String> removeFeatures) {
@@ -157,7 +160,7 @@ public class FeatureReplacementAction implements RepeatTestAction {
      *
      * ...to be clear, this is not the opposite of addFeature()
      *
-     * @param removeFeature the feature to be removed
+     * @param removeFeature the feature to be removed. Wildcards are supported.
      * @return this
      */
     public FeatureReplacementAction removeFeature(String removeFeature) {
@@ -235,22 +238,30 @@ public class FeatureReplacementAction implements RepeatTestAction {
         File filesFolder = new File(pathToAutoFVTTestFiles);
         if (servers.contains(ALL_SERVERS)) {
             // Find all *.xml in this test project
-            serverConfigs.addAll(findFile(serverFolder, ".xml"));
             serverConfigs.addAll(findFile(filesFolder, ".xml"));
-        } else {
-            for (String serverName : servers)
-                serverConfigs.add(new File(pathToAutoFVTTestServers + serverName + "/server.xml"));
+            servers.remove(ALL_SERVERS);
+            if (serverFolder.exists())
+                for (File f : serverFolder.listFiles())
+                    if (f.isDirectory())
+                        servers.add(f.getName());
         }
+        for (String serverName : servers)
+            serverConfigs.add(new File(pathToAutoFVTTestServers + serverName + "/server.xml"));
+
         // Find all of the client configurations to replace features in
         Set<File> clientConfigs = new HashSet<>();
         File clientFolder = new File(pathToAutoFVTTestClients);
         if (clients.contains(ALL_CLIENTS)) {
             // Find all *.xml in this test project
             clientConfigs.addAll(findFile(clientFolder, ".xml"));
-        } else {
-            for (String clientName : clients)
-                clientConfigs.add(new File(pathToAutoFVTTestClients + clientName));
+            clients.remove(ALL_CLIENTS);
+            if (clientFolder.exists())
+                for (File f : clientFolder.listFiles())
+                    if (f.isDirectory())
+                        clients.add(f.getName());
         }
+        for (String clientName : clients)
+            clientConfigs.add(new File(pathToAutoFVTTestClients + clientName + "/client.xml"));
 
         // Make sure that XML file we find is a server config file, by checking if it contains the <server> tag
         Log.info(c, m, "Replacing features in files: " + serverConfigs.toString() + "  and  " + clientConfigs.toString());
@@ -298,41 +309,47 @@ public class FeatureReplacementAction implements RepeatTestAction {
             Log.info(c, m, "Original features:  " + features);
             if (forceAddFeatures) {
                 features.removeAll(removeFeatures);
+                //remove any wildcard features, before adding the new feature.
+                for (String removeFeature : removeFeatures) {
+                    if (removeFeature.endsWith("*")) {
+                        removeWildcardFeature(features, removeFeature);
+                    }
+                }
                 features.addAll(addFeatures);
             } else {
-                for (String removeFeature : removeFeatures)
-                    if (features.remove(removeFeature)) {
-                        // If we found a feature to remove that is actually present in config file, then
-                        // remove it and replace it with the corresponding feature
+                for (String removeFeature : removeFeatures) {
+                    boolean removed = false; 
+                    if (removeFeature.endsWith("*")) {
+                        removed = removeWildcardFeature(features, removeFeature);
+                    }
+                    else if (features.remove(removeFeature)) {
+                        removed = true; 
+                    }
+
+                    // If we found a feature to remove that is actually present in config file, then
+                    // replace it with the corresponding feature
+                    if (removed) {
                         String toAdd = getReplacementFeature(removeFeature, addFeatures);
                         if (toAdd != null)
                             features.add(toAdd);
                     }
+                }
             }
             Log.info(c, m, "Resulting features: " + features);
 
             if (isServerConfig) {
                 Log.info(c, m, "Config: " + serverConfig);
                 ServerConfigurationFactory.toFile(configFile, serverConfig);
-            } else
+            } else {
                 ClientConfigurationFactory.toFile(configFile, clientConfig);
-        }
-
-        // Make sure config update is pushed to the wlp version of the server & client
-        if (serverConfigs.size() > 0) {
-            for (String serverName : servers) {
-                if (!serverName.equals(ALL_SERVERS))
-                    LibertyServerFactory.getLibertyServer(serverName);
             }
         }
 
-        if (clientConfigs.size() > 0) {
-            for (String clientName : clients) {
-                if (!clientName.equals(ALL_CLIENTS))
-                    LibertyClientFactory.getLibertyClient(clientName);
-            }
-        }
-
+        // Make sure config updates are pushed to the liberty install's copy of the servers & clients
+        for (String serverName : servers)
+            LibertyServerFactory.getLibertyServer(serverName);
+        for (String clientName : clients)
+            LibertyClientFactory.getLibertyClient(clientName);
     }
 
     private static String getReplacementFeature(String originalFeature, Set<String> featuresToAdd) {
@@ -344,6 +361,20 @@ public class FeatureReplacementAction implements RepeatTestAction {
         // We may need to remove a feature without adding any replacement
         // (e.g. jsonb-1.0 is EE8 only) so in this case return null
         return null;
+    }
+
+    private static boolean removeWildcardFeature(Set<String> features, String removeFeature) {
+        String matcher = removeFeature.substring(0, removeFeature.length() - 1);
+        boolean removed = false;
+        Iterator<String> iterator = features.iterator();
+        while (iterator.hasNext()) {
+            String feature = iterator.next();
+            if (feature.startsWith(matcher)) {
+                iterator.remove();
+                removed = true;
+            }
+        }
+        return removed; 
     }
 
     private static Set<File> findFile(File dir, String suffix) {
@@ -368,6 +399,10 @@ public class FeatureReplacementAction implements RepeatTestAction {
 
     @Override
     public String getID() {
-        return currentID;
+        if (currentID != null) {
+            return currentID;
+        } else {
+            return toString();
+        }
     }
 }

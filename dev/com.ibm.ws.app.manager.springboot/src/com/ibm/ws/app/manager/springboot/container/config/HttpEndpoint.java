@@ -10,23 +10,31 @@
  *******************************************************************************/
 package com.ibm.ws.app.manager.springboot.container.config;
 
-import javax.xml.bind.annotation.XmlAttribute;
-import javax.xml.bind.annotation.XmlElement;
-
 /**
  * Defines an HTTP endpoint (host/port mapping)
  */
 public class HttpEndpoint extends ConfigElement {
 
-    @XmlElement(name = "tcpOptions")
+    public static final String XML_ELEMENT_NAME_TCP_OPTIONS = "tcpOptions";
     private TcpOptions tcpOptions;
-    @XmlElement(name = "httpOptions")
+
+    public static final String XML_ELEMENT_NAME_HTTP_OPTIONS = "httpOptions";
     private HttpOptions httpOptions;
-    @XmlElement(name = "sslOptions")
+
+    public static final String XML_ELEMENT_NAME_SSL_OPTIONS = "sslOptions";
     private SslOptions sslOptions;
+
+    public static final String XML_ATTRIBUTE_NAME_HOST = "host";
     private String host;
+
+    public static final String XML_ATTRIBUTE_NAME_HTTP_PORT = "httpPort";
     private Integer httpPort;
+
+    public static final String XML_ATTRIBUTE_NAME_HTTPS_PORT = "httpsPort";
     private Integer httpsPort;
+
+    public static final String XML_ATTRIBUTE_NAME_PROTOCOL_VERSION = "protocolVersion";
+    private String protocolVersion;
 
     /**
      * @return TCP options for this configuration
@@ -68,7 +76,6 @@ public class HttpEndpoint extends ConfigElement {
     /**
      * @param host the host mapping for this entry
      */
-    @XmlAttribute
     public void setHost(String host) {
         this.host = ConfigElement.getValue(host);
     }
@@ -83,7 +90,6 @@ public class HttpEndpoint extends ConfigElement {
     /**
      * @param httpPort the port to use for non-secure traffic
      */
-    @XmlAttribute
     public void setHttpPort(Integer httpPort) {
         this.httpPort = httpPort;
     }
@@ -98,9 +104,22 @@ public class HttpEndpoint extends ConfigElement {
     /**
      * @param httpsPort the port to use for secure traffic
      */
-    @XmlAttribute
     public void setHttpsPort(Integer httpsPort) {
         this.httpsPort = httpsPort;
+    }
+
+    /**
+     * @return the protocolVersion for this entry
+     */
+    public String getProtocolVersion() {
+        return this.protocolVersion;
+    }
+
+    /**
+     * @param protocolVersion for this entry
+     */
+    public void setProtocolVersion(String protocolVersion) {
+        this.protocolVersion = ConfigElement.getValue(protocolVersion);
     }
 
     @Override
@@ -113,6 +132,8 @@ public class HttpEndpoint extends ConfigElement {
             buf.append("httpPort=\"" + this.httpPort + "\" ");
         if (this.httpsPort != null)
             buf.append("httpsPort=\"" + this.httpsPort + "\" ");
+        if (this.protocolVersion != null)
+            buf.append("protocolVersion=\"" + this.protocolVersion + "\" ");
         if (this.tcpOptions != null)
             buf.append(tcpOptions.toString());
         if (this.sslOptions != null)

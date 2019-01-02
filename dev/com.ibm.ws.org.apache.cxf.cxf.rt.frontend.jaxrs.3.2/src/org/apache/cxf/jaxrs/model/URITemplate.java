@@ -138,7 +138,6 @@ public final class URITemplate {
 
     private static String escapeCharacters(String expression) {
 
-        // Liberty Change for CXF Begin
         int length = expression.length();
         int i = 0;
         char ch = ' ';
@@ -153,6 +152,9 @@ public final class URITemplate {
             return expression;
         }
 
+        // Allows for up to 8 escaped characters before we start creating more
+        // StringBuilders. 8 is an arbitrary limit, but it seems to be
+        // sufficient in most cases.
         StringBuilder sb = new StringBuilder(length + 8);
         sb.append(expression, 0, i);
         sb.append('\\');
@@ -165,7 +167,6 @@ public final class URITemplate {
             }
             sb.append(ch);
         }
-        // Liberty Change for CXF End
         return sb.toString();
     }
 
@@ -422,27 +423,23 @@ public final class URITemplate {
     // Liberty Change end
 
     public static int compareTemplates(URITemplate t1, URITemplate t2) {
-        String l1 = t1.getLiteralChars();
-        String l2 = t2.getLiteralChars();
-        if (!l1.equals(l2)) {
-            // descending order
-            return l1.length() < l2.length() ? 1 : -1;
-        }
-
-        int g1 = t1.getVariables().size();
-        int g2 = t2.getVariables().size();
+        int l1 = t1.getLiteralChars().length();
+        int l2 = t2.getLiteralChars().length();
         // descending order
-        int result = g1 < g2 ? 1 : g1 > g2 ? -1 : 0;
+        int result = l1 < l2 ? 1 : l1 > l2 ? -1 : 0;
         if (result == 0) {
-            int gCustom1 = t1.getCustomVariables().size();
-            int gCustom2 = t2.getCustomVariables().size();
-            if (gCustom1 != gCustom2) {
-                // descending order
-                return gCustom1 < gCustom2 ? 1 : -1;
+            int g1 = t1.getVariables().size();
+            int g2 = t2.getVariables().size();
+            // descending order
+            result = g1 < g2 ? 1 : g1 > g2 ? -1 : 0;
+            if (result == 0) {
+                int gCustom1 = t1.getCustomVariables().size();
+                int gCustom2 = t2.getCustomVariables().size();
+                result = gCustom1 < gCustom2 ? 1 : gCustom1 > gCustom2 ? -1 : 0;
+                if (result == 0) {
+                    result = t1.getPatternValue().compareTo(t2.getPatternValue());
+                }
             }
-        }
-        if (result == 0) {
-            result = t1.getPatternValue().compareTo(t2.getPatternValue());
         }
 
         return result;
@@ -523,7 +520,9 @@ public final class URITemplate {
          * @return Variable if variable was successfully created; null if uriChunk was not a variable
          */
         public static Variable create(String uriChunk, List<Parameter> params) { //Liberty change
-            Variable newVariable = new Variable();
+            // Liberty change start
+            //Variable newVariable = new Variable();
+            // Liberty change end
             if (uriChunk == null || "".equals(uriChunk)) {
                 return null;
             }
@@ -531,6 +530,9 @@ public final class URITemplate {
                 uriChunk = CurlyBraceTokenizer.stripBraces(uriChunk).trim();
                 Matcher matcher = VARIABLE_PATTERN.matcher(uriChunk);
                 if (matcher.matches()) {
+                    // Liberty change start
+                    Variable newVariable = new Variable();
+                    // Liberty change end
                     newVariable.name = matcher.group(1).trim();
                     if (matcher.group(2) != null && matcher.group(3) != null) {
                         String patternExpression = matcher.group(3).trim();
@@ -613,8 +615,12 @@ public final class URITemplate {
             int level = 0;
             int lastIdx = 0;
             int idx;
-            for (idx = 0; idx < string.length(); idx++) {
-                if (string.charAt(idx) == '{') {
+            // Liberty change start
+            int length = string.length();
+            for (idx = 0; idx < length; idx++) {
+                char c = string.charAt(idx);
+                if (c == '{') {
+                    // Liberty change end
                     if (outside) {
                         if (lastIdx < idx) {
                             tokens.add(string.substring(lastIdx, idx));
@@ -624,12 +630,16 @@ public final class URITemplate {
                     } else {
                         level++;
                     }
-                } else if (string.charAt(idx) == '}' && !outside) {
+                // Liberty change start
+                } else if (c == '}' && !outside) {
+                // Liberty change end
                     if (level > 0) {
                         level--;
                     } else {
                         if (lastIdx < idx) {
-                            tokens.add(string.substring(lastIdx, idx + 1));
+                            // Liberty change start
+                            tokens.add(lastIdx == 0 && idx + 1 == length ? string : string.substring(lastIdx, idx + 1));
+                            // Liberty change end
                         }
                         lastIdx = idx + 1;
                         outside = true;
@@ -637,7 +647,9 @@ public final class URITemplate {
                 }
             }
             if (lastIdx < idx) {
-                tokens.add(string.substring(lastIdx, idx));
+                // Liberty change start
+                tokens.add(lastIdx == 0 ? string : string.substring(lastIdx, idx));
+                // Liberty change end
             }
         }
 

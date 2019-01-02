@@ -10,6 +10,8 @@
  *******************************************************************************/
 package com.ibm.ws.logging.collector;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 
@@ -32,11 +34,16 @@ public class CollectorJsonHelpers {
     private static String startAccessLogJson1_1 = null;
     private static String startGCJson = null;
     private static String startGCJson1_1 = null;
-    private static final String messageEventTypeFieldJson = "\"type\":\"liberty_message\"";
-    private static final String traceEventTypeFieldJson = "\"type\":\"liberty_trace\"";
-    private static final String accessLogEventTypeFieldJson = "\"type\":\"liberty_accesslog\"";
-    private static final String ffdcEventTypeFieldJson = "\"type\":\"liberty_ffdc\"";
-    private static final String gcEventTypeFieldJson = "\"type\":\"liberty_gc\"";
+    private static String startAuditJson = null;
+    private static String startAuditJson1_1 = null;
+    private static final String TYPE_FIELD_PREPPEND = "\"type\":\"";
+    private static final String TYPE_FIELD_APPEND = "\"";
+    private static final String MESSAGE_JSON_TYPE_FIELD = TYPE_FIELD_PREPPEND + CollectorConstants.MESSAGES_LOG_EVENT_TYPE + TYPE_FIELD_APPEND;
+    private static final String TRACE_JSON_TYPE_FIELD = TYPE_FIELD_PREPPEND + CollectorConstants.TRACE_LOG_EVENT_TYPE + TYPE_FIELD_APPEND;
+    private static final String ACCESS_JSON_TYPE_FIELD = TYPE_FIELD_PREPPEND + CollectorConstants.ACCESS_LOG_EVENT_TYPE + TYPE_FIELD_APPEND;
+    private static final String FFDC_JSON_TYPE_FIELD = TYPE_FIELD_PREPPEND + CollectorConstants.FFDC_EVENT_TYPE + TYPE_FIELD_APPEND;
+    private static final String GC_JSON_TYPE_FIELD = TYPE_FIELD_PREPPEND + CollectorConstants.GC_EVENT_TYPE + TYPE_FIELD_APPEND;
+    private static final String AUDIT_JSON_TYPE_FIELD = TYPE_FIELD_PREPPEND + CollectorConstants.AUDIT_LOG_EVENT_TYPE + TYPE_FIELD_APPEND;
     private static String unchangingFieldsJson = null;
     private static String unchangingFieldsJson1_1 = null;
     public final static String TRUE_BOOL = "true";
@@ -45,6 +52,16 @@ public class CollectorJsonHelpers {
     public final static String FLOAT_SUFFIX = "_float";
     public final static String BOOL_SUFFIX = "_bool";
     public final static String LONG_SUFFIX = "_long";
+    public static final String LINE_SEPARATOR;
+
+    static {
+        LINE_SEPARATOR = AccessController.doPrivileged(new PrivilegedAction<String>() {
+            @Override
+            public String run() {
+                return System.getProperty("line.separator");
+            }
+        });
+    }
 
     protected static String getEventType(String source, String location) {
         if (source.equals(CollectorConstants.GC_SOURCE) && location.equals(CollectorConstants.MEMORY)) {
@@ -57,6 +74,8 @@ public class CollectorJsonHelpers {
             return CollectorConstants.FFDC_EVENT_TYPE;
         } else if (source.endsWith(CollectorConstants.ACCESS_LOG_SOURCE) && location.equals(CollectorConstants.MEMORY)) {
             return CollectorConstants.ACCESS_LOG_EVENT_TYPE;
+        } else if (source.contains(CollectorConstants.AUDIT_LOG_SOURCE)) {
+            return CollectorConstants.AUDIT_LOG_EVENT_TYPE;
         } else
             return "";
     }
@@ -193,7 +212,7 @@ public class CollectorJsonHelpers {
             sb.append(startMessageJson);
         } else {
             sb.append("{");
-            sb.append(messageEventTypeFieldJson);
+            sb.append(MESSAGE_JSON_TYPE_FIELD);
             addUnchangingFields(sb, hostName, wlpUserDir, serverName);
 
             startMessageJson = sb.toString();
@@ -209,7 +228,7 @@ public class CollectorJsonHelpers {
             sb.append(startTraceJson);
         } else {
             sb.append("{");
-            sb.append(traceEventTypeFieldJson);
+            sb.append(TRACE_JSON_TYPE_FIELD);
             addUnchangingFields(sb, hostName, wlpUserDir, serverName);
 
             startTraceJson = sb.toString();
@@ -225,7 +244,7 @@ public class CollectorJsonHelpers {
             sb.append(startFFDCJson);
         } else {
             sb.append("{");
-            sb.append(ffdcEventTypeFieldJson);
+            sb.append(FFDC_JSON_TYPE_FIELD);
             addUnchangingFields(sb, hostName, wlpUserDir, serverName);
 
             startFFDCJson = sb.toString();
@@ -241,7 +260,7 @@ public class CollectorJsonHelpers {
             sb.append(startAccessLogJson);
         } else {
             sb.append("{");
-            sb.append(accessLogEventTypeFieldJson);
+            sb.append(ACCESS_JSON_TYPE_FIELD);
             addUnchangingFields(sb, hostName, wlpUserDir, serverName);
 
             startAccessLogJson = sb.toString();
@@ -257,10 +276,40 @@ public class CollectorJsonHelpers {
             sb.append(startGCJson);
         } else {
             sb.append("{");
-            sb.append(gcEventTypeFieldJson);
+            sb.append(GC_JSON_TYPE_FIELD);
             addUnchangingFields(sb, hostName, wlpUserDir, serverName);
 
             startGCJson = sb.toString();
+        }
+
+        return sb;
+    }
+
+    protected static StringBuilder startAuditJson(String hostName, String wlpUserDir, String serverName) {
+        StringBuilder sb = new StringBuilder(2048);
+
+        if (startAuditJson != null) {
+            sb.append(startAuditJson);
+        } else {
+            sb.append("{");
+            sb.append(AUDIT_JSON_TYPE_FIELD);
+            addUnchangingFields(sb, hostName, wlpUserDir, serverName);
+            startAuditJson = sb.toString();
+        }
+
+        return sb;
+    }
+
+    protected static StringBuilder startAuditJson1_1(String hostName, String wlpUserDir, String serverName) {
+        StringBuilder sb = new StringBuilder(2048);
+
+        if (startAuditJson1_1 != null) {
+            sb.append(startAuditJson1_1);
+        } else {
+            sb.append("{");
+            sb.append(AUDIT_JSON_TYPE_FIELD);
+            addUnchangingFields1_1(sb, hostName, wlpUserDir, serverName);
+            startAuditJson1_1 = sb.toString();
         }
 
         return sb;
@@ -273,7 +322,7 @@ public class CollectorJsonHelpers {
             sb.append(startMessageJson1_1);
         } else {
             sb.append("{");
-            sb.append(messageEventTypeFieldJson);
+            sb.append(MESSAGE_JSON_TYPE_FIELD);
             addUnchangingFields1_1(sb, hostName, wlpUserDir, serverName);
 
             startMessageJson1_1 = sb.toString();
@@ -289,7 +338,7 @@ public class CollectorJsonHelpers {
             sb.append(startTraceJson1_1);
         } else {
             sb.append("{");
-            sb.append(traceEventTypeFieldJson);
+            sb.append(TRACE_JSON_TYPE_FIELD);
             addUnchangingFields1_1(sb, hostName, wlpUserDir, serverName);
 
             startTraceJson1_1 = sb.toString();
@@ -305,7 +354,7 @@ public class CollectorJsonHelpers {
             sb.append(startFFDCJson1_1);
         } else {
             sb.append("{");
-            sb.append(ffdcEventTypeFieldJson);
+            sb.append(FFDC_JSON_TYPE_FIELD);
             addUnchangingFields1_1(sb, hostName, wlpUserDir, serverName);
 
             startFFDCJson1_1 = sb.toString();
@@ -321,7 +370,7 @@ public class CollectorJsonHelpers {
             sb.append(startAccessLogJson1_1);
         } else {
             sb.append("{");
-            sb.append(accessLogEventTypeFieldJson);
+            sb.append(ACCESS_JSON_TYPE_FIELD);
             addUnchangingFields1_1(sb, hostName, wlpUserDir, serverName);
 
             startAccessLogJson1_1 = sb.toString();
@@ -337,7 +386,7 @@ public class CollectorJsonHelpers {
             sb.append(startGCJson1_1);
         } else {
             sb.append("{");
-            sb.append(gcEventTypeFieldJson);
+            sb.append(GC_JSON_TYPE_FIELD);
             addUnchangingFields1_1(sb, hostName, wlpUserDir, serverName);
 
             startGCJson1_1 = sb.toString();
@@ -424,31 +473,31 @@ public class CollectorJsonHelpers {
 
     public static void handleExtensions(KeyValuePairList extensions, String extKey, String extValue) {
         extKey = LogFieldConstants.EXT_PREFIX + extKey;
-        if (extKey.indexOf('_', extKey.length() - 6) != -1) {
+        if (extKey.indexOf('_', 4) != -1) {
             if (extKey.endsWith(CollectorJsonHelpers.INT_SUFFIX)) {
                 try {
-                    extensions.addPair(extKey, Integer.parseInt(extValue));
+                    extensions.addKeyValuePair(extKey, Integer.parseInt(extValue));
                 } catch (NumberFormatException e) {
                 }
             } else if (extKey.endsWith(CollectorJsonHelpers.FLOAT_SUFFIX)) {
                 try {
-                    extensions.addPair(extKey, Float.parseFloat(extValue));
+                    extensions.addKeyValuePair(extKey, Float.parseFloat(extValue));
                 } catch (NumberFormatException e) {
                 }
             } else if (extKey.endsWith(CollectorJsonHelpers.BOOL_SUFFIX)) {
                 if (extValue.toLowerCase().trim().equals(TRUE_BOOL)) {
-                    extensions.addPair(extKey, true);
+                    extensions.addKeyValuePair(extKey, true);
                 } else if (extValue.toLowerCase().trim().equals(FALSE_BOOL)) {
-                    extensions.addPair(extKey, false);
+                    extensions.addKeyValuePair(extKey, false);
                 }
             } else if (extKey.endsWith(CollectorJsonHelpers.LONG_SUFFIX)) {
                 try {
-                    extensions.addPair(extKey, Long.parseLong(extValue));
+                    extensions.addKeyValuePair(extKey, Long.parseLong(extValue));
                 } catch (NumberFormatException e) {
                 }
             }
         } else {
-            extensions.addPair(extKey, extValue);
+            extensions.addKeyValuePair(extKey, extValue);
         }
     }
 }

@@ -83,7 +83,8 @@ action-desc.package=\tPermet d'empaqueter un serveur dans une archive. L'option 
 \tL'option --include peut \u00eatre utilis\u00e9e avec les valeurs "all", "usr", "minify", \n\
 \t"wlp", "runnable", "all,runnable" et "minify,runnable". Les valeurs \n\
 \t"runnable" et "all,runnable" sont \u00e9quivalentes. La valeur "runnable" \n\
-\tfonctionne avec les archives de type "jar" uniquement.
+\tfonctionne avec les archives de type "jar" uniquement. L'option --server-root peut \u00eatre \n\
+\tutilis\u00e9e pour sp\u00e9cifier le dossier racine dans l'archive de package.
 #------------------------------\n at 72 chars -- leading tab-----------\n\#
 action-key.dump=\ \ \ \ --dump
 action-desc.dump=\tCollecte des donn\u00e9es de diagnostic du serveur et les place dans une archive. L'option \n\
@@ -132,7 +133,6 @@ option-desc.dump.archive=\tSp\u00e9cifiez la cible d'archive que l'action de vid
 \td'archive par d\u00e9faut pour l'action de package est "pax" sous z/OS et "zip"\n\
 \tsur les autres plateformes. Le format d'archive "jar" g\u00e9n\u00e8re un fichier jar\n\
 \tauto-extractible similaire \u00e0 l'archive de programme d'installation d'origine.
-
 option-desc.package.archive=\tSp\u00e9cifiez la cible d'archive que l'action de package doit g\u00e9n\u00e9rer.       \n\
 \tLa cible peut \u00eatre sp\u00e9cifi\u00e9e comme chemin d'acc\u00e8s absolu ou         \n\
 \trelatif. Si cette option est omise, le fichier archive est cr\u00e9\u00e9\n\
@@ -149,13 +149,15 @@ Le format d'archive "jar"      \n\
 option-key.include=\ \ \ \ --include=value,value,...
 option-desc.javadump.include=\tListe de valeurs d\u00e9limit\u00e9e par des virgules. Les valeurs valides sont : heap, system \n\
 \tthread.
-option-desc.package.include=\tListe de valeurs d\u00e9limit\u00e9e par des virgules. Les valeurs valides sont : all*, usr,   \n\
-\tminify, runnable. Si vous sp\u00e9cifiez runnable, le package g\u00e9n\u00e9r\u00e9 sera \n\
-\tun fichier jar ex\u00e9cutable qui ex\u00e9cute le serveur. L'option minify g\u00e9n\u00e8re\n\
-\tla plus petite image possible pour le serveur. L'option usr cr\u00e9e un\n\
-\tpackage qui contient le serveur et l'application, mais pas l'environnement\n\
-\td'ex\u00e9cution. L'option par d\u00e9faut all g\u00e9n\u00e8re un package serveur qui\n\
-\tcontient tout.
+option-desc.package.include=\tListe de valeurs d\u00e9limit\u00e9e par des virgules. Les \
+valeurs valides sont : all*, usr,   \n\
+\tminify, runnable, wlp. Si vous sp\u00e9cifiez runnable, le package g\u00e9n\u00e9r\u00e9\n\
+\test un fichier jar ex\u00e9cutable qui ex\u00e9cute le serveur. L'option minify\n\
+\tg\u00e9n\u00e8re la plus petite image possible pour le serveur. L'option usr\n\
+\tcr\u00e9e un package qui contient le serveur et l'application, mais pas\n\
+\tl'environnement d'ex\u00e9cution. L'option wlp g\u00e9n\u00e8re un environnement\n\
+\td'ex\u00e9cution qui ne contient pas la configuration du serveur. L'option\n\
+\tall par d\u00e9faut g\u00e9n\u00e8re un package serveur qui contient tout.
 #------------------------------\n at 72 chars -- leading tab-----------\n\#
 option-key.template=\ \ \ \ --template="templateName"
 option-desc.template=\tIndiquez le nom du mod\u00e8le \u00e0 utiliser lors de la cr\u00e9ation d'un serveur. 
@@ -176,4 +178,10 @@ option-desc.os=\tSp\u00e9cifie les syst\u00e8mes d'exploitation \u00e0 prendre e
 \tCette option s'applique uniquement \u00e0 l'op\u00e9ration de package et ne peut \u00eatre \n\
 \tutilis\u00e9e qu'avec l'option --include=minify. Si vous excluez un syst\u00e8me \n\
 \td'exploitation, vous ne pouvez pas l'inclure plus tard en r\u00e9p\u00e9tant l'op\u00e9ration \n\
-\tminify sur l'archive. 
+\tminify sur l'archive.
+#------------------------------\n at 72 chars -- leading tab-----------\n\# 
+option-key.no-password=\ \ \ \ --no-password
+option-desc.no-password=\tD\u00e9sactivez la g\u00e9n\u00e9ration d'un mot de passe de magasin de cl\u00e9s par d\u00e9faut
+#------------------------------\n at 72 chars -- leading tab-----------\n\#
+option-key.server-root=\ \ \ \ --server-root="dossier de serveur racine dans l'archive"
+option-desc.package.server-root=\tSp\u00e9cifie le nom du dossier de serveur racine dans le fichier archive.

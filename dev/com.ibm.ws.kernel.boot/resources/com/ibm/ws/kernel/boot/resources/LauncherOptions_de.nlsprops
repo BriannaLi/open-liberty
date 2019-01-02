@@ -82,7 +82,8 @@ Die Option --archive kann verwendet werden.    \n\
 \t"minify", "wlp", "runnable", "all,runnable" und "minify,runnable"\n\
 \tverwendet werden. Die Werte "runnable" und "all,runnable" sind \n\
 \t\u00e4quivalent. Der Wert "runnable" funktioniert nur f\u00fcr Archive\n\
-\tdes Typs "jar".
+\tdes Typs "jar". Mit der Option --server-root kann der\n\
+\tStammordner im Paketarchiv angegeben werden.
 #------------------------------\n at 72 chars -- leading tab-----------\n\#
 action-key.dump=\ \ \ \ --dump
 action-desc.dump=\tSpeichert Diagnoseinformationen des Servers in einem Archiv. \
@@ -151,12 +152,13 @@ option-key.include=\ \ \ \ --include=Wert,Wert,...
 option-desc.javadump.include=\tEine durch Kommas begrenzte Liste mit Werten. G\u00fcltige Werte sind: heap, system \n\
 \tthread.
 option-desc.package.include=\tEine durch Kommas begrenzte Liste mit Werten. G\u00fcltige Werte sind: all*, usr,   \n\
-\tminify, runnable. Wenn Sie runnable angeben, wird das resultierende Paket\n\
-\teine ausf\u00fchrbare JAR-Datei, in der der Server ausgef\u00fchrt wird. Die Option minify erzeugt\n\
+\tminify, runnable und wlp. Wenn Sie runnable angeben, ist das erstellte Paket\n\
+\teine ausf\u00fchrbare JAR-Datei, die den Server ausf\u00fchrt. Die Option minify erzeugt\n\
 \tdas f\u00fcr den Server kleinstm\u00f6gliche Image. Die Option usr erstellt ein Paket, \n\
 \tdas den Server und die Anwendung enth\u00e4lt, aber nicht die \n\
-\tLaufzeit. Die Option default all erzeugt ein Serverpaket, das \n\
-\talles enth\u00e4lt.
+\tLaufzeitumgebung. Die Option wlp erstellt eine Laufzeitumgebung, \n\
+\tdie die Serverkonfiguration nicht enth\u00e4lt. Die Standardoption\n\
+\tall erzeugt ein Serverpaket, das alles enth\u00e4lt.
 #------------------------------\n at 72 chars -- leading tab-----------\n\#
 option-key.template=\ \ \ \ --template="Schablonenname"
 option-desc.template=\tGibt den Namen der Schablone an, die beim Erstellen eines neuen Servers verwendet werden soll.
@@ -179,3 +181,9 @@ option-desc.os=\tGibt die Betriebssysteme an, die der gepackte Server unterst\u0
 \tOption --include=minify verwendet werden. Wenn Sie ein Betriebssystem\n\
 \tausschlie\u00dfen, ist es nicht m\u00f6glich, es sp\u00e4ter durch Wiederholung einer \n\
 \tminify-Operation wieder in das Archiv einzuschlie\u00dfen. 
+#------------------------------\n at 72 chars -- leading tab-----------\n\# 
+option-key.no-password=\ \ \ \ --no-password
+option-desc.no-password=\tInaktiviert die Generierung des Standard-Keystore-Kennworts.
+#------------------------------\n at 72 chars -- leading tab-----------\n\#
+option-key.server-root=\ \ \ \ --server-root="Serverstammordner im Archiv"
+option-desc.package.server-root=\tGibt den Namen des Serverstammordners in der Archivdatei an.

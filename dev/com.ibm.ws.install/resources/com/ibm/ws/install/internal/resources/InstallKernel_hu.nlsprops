@@ -434,6 +434,15 @@ ERROR_NON_FEATURE_CANNOT_INSTALL_TO_EXTENSION=CWWKF1298E: A(z) {0} nem egy szolg
 ERROR_NON_FEATURE_CANNOT_INSTALL_TO_EXTENSION.explanation=A term\u00e9kb\u0151v\u00edtm\u00e9nyben csak szolg\u00e1ltat\u00e1sokat lehet telep\u00edteni.
 ERROR_NON_FEATURE_CANNOT_INSTALL_TO_EXTENSION.action=Futtassa \u00fajra az installUtility telep\u00edt\u00e9si parancs\u00e1t a b\u0151v\u00edtm\u00e9ny megad\u00e1sa n\u00e9lk\u00fcl.
 
+ERROR_FAILED_TO_RESOLVE_FEATURES_FOR_OPEN_LIBERTY=CWWKF1299E: A k\u00f6vetkez\u0151 szolg\u00e1ltat\u00e1sok nem szerezhet\u0151k be: {0}. Gy\u0151z\u0151dj\u00f6n meg a szolg\u00e1ltat\u00e1sok \u00e9rv\u00e9nyess\u00e9g\u00e9r\u0151l az Open Liberty eset\u00e9n.
+ERROR_FAILED_TO_RESOLVE_FEATURES_FOR_OPEN_LIBERTY.explanation=A telep\u00edt\u0151nek nem siker\u00fclt lek\u00e9rni a megadott szolg\u00e1ltat\u00e1sokat a csatlakoztatott lerakatokb\u00f3l.
+ERROR_FAILED_TO_RESOLVE_FEATURES_FOR_OPEN_LIBERTY.useraction=Ha a megadott szolg\u00e1ltat\u00e1sok l\u00e9teznek, gy\u0151z\u0151dj\u00f6n meg r\u00f3la, hogy \u00e9rv\u00e9nyesek az Open Liberty eset\u00e9n.
+
+ERROR_INVALID_PRODUCT_EDITION_FOR_OPEN_LIBERTY_FEATURE=CWWKF1300E: A(z) {0} szolg\u00e1ltat\u00e1s nem telep\u00edthet\u0151 IBM WebSphere Application Server Liberty Core kiad\u00e1sra, mert az csak a t\u00f6bbi IBM WebSphere Application Server Liberty kiad\u00e1sra \u00e9s az Open Liberty term\u00e9kre \u00e9rv\u00e9nyes. Haszn\u00e1lja a featureManager parancs "find" m\u0171velet\u00e9t az IBM WebSphere Application Server Liberty Core kiad\u00e1sra alkalmazhat\u00f3 szolg\u00e1ltat\u00e1sok list\u00e1j\u00e1nak lek\u00e9r\u00e9s\u00e9hez.
+ERROR_INVALID_PRODUCT_EDITION_FOR_OPEN_LIBERTY_FEATURE.explanation=A szolg\u00e1ltat\u00e1s nem alkalmazhat\u00f3 a telep\u00edtett term\u00e9k aktu\u00e1lis kiad\u00e1s\u00e1hoz.
+ERROR_INVALID_PRODUCT_EDITION_FOR_OPEN_LIBERTY_FEATURE.useraction=Telep\u00edtsen olyan szolg\u00e1ltat\u00e1sokat, melyeket t\u00e1mogat a term\u00e9k aktu\u00e1lis kiad\u00e1sa.
+
+
 # Following messages for info logging purpose
 LOG_INSTALL_FEATURES=CWWKF1300I: A k\u00f6vetkez\u0151 szolg\u00e1ltat\u00e1sok telep\u00edt\u00e9se: {0}.
 LOG_INSTALL_FEATURES.explanation=A megadott szolg\u00e1ltat\u00e1sok ker\u00fclnek telep\u00edt\u00e9sre.
@@ -761,6 +770,14 @@ ERROR_UNKNOWN_OPERATING_SYSTEM.useraction=V\u00e1ltson a k\u00f6vetkez\u0151 ope
 ERROR_UNKNOWN_OSLIST_VALUE=CWWKF1387E: A(z) {0} \u00e9rt\u00e9k nem \u00e9rv\u00e9nyes bejegyz\u00e9s a(z) {1} OS direkt\u00edv\u00e1jak\u00e9nt.
 ERROR_UNKNOWN_OSLIST_VALUE.explanation=Az \u00e9rt\u00e9k figyelmen k\u00edv\u00fcl marad, mert nem ismerhet\u0151 fel oper\u00e1ci\u00f3s rendszer n\u00e9vk\u00e9nt.
 ERROR_UNKNOWN_OSLIST_VALUE.useraction=M\u00f3dos\u00edtsa vagy t\u00e1vol\u00edtsa el az \u00e9rt\u00e9ket a szolg\u00e1ltat\u00e1s manifest f\u00e1jlj\u00e1b\u00f3l.
+
+ERROR_ESA_NOT_FOUND=CWWKF1388E: A megadott {0} ESA f\u00e1jl nem tartalmazott \u00f6sszetev\u0151ket.
+ERROR_ESA_NOT_FOUND.explanation=Nem lesz \u00f6sszetev\u0151 telep\u00edtve az ESA f\u00e1jlb\u00f3l.
+ERROR_ESA_NOT_FOUND.useraction=Gy\u0151z\u0151dj\u00f6n meg r\u00f3la, hogy a megadott egyedi ESA f\u00e1jl \u00e9rv\u00e9nyes, \u00e9s tartalmaz \u00f6sszetev\u0151t.
+
+ERROR_SINGLE_REPO_CONNECTION_FAILED=CWWKF1389E: A(z) {0} ponton nem hozhat\u00f3 l\u00e9tre JSON f\u00e1jl a(z) {1} ESA f\u00e1jlra vonatkoz\u00f3an.
+ERROR_SINGLE_REPO_CONNECTION_FAILED.explanation=Az \u00f6sszetev\u0151 az ESA f\u00e1jlb\u00f3l nem lesz telep\u00edtve.
+ERROR_SINGLE_REPO_CONNECTION_FAILED.useraction=Gy\u0151z\u0151dj\u00f6n meg r\u00f3la, hogy \u00edr\u00e1si hozz\u00e1f\u00e9r\u00e9ssel rendelkezik ahhoz a k\u00f6nyvt\u00e1rhoz, ahov\u00e1 a JSON f\u00e1jl l\u00e9trehoz\u00e1sra ker\u00fcl.
 
 TOOL_DOWNLOAD_FEATURE_OK=CWWKF1500I: A szolg\u00e1ltat\u00e1s let\u00f6lt\u00e9se siker\u00fclt.
 TOOL_DOWNLOAD_FEATURE_OK.explanation=A szolg\u00e1ltat\u00e1s le lett t\u00f6ltve.

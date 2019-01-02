@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (c) 2009 IBM Corporation and others.
+ * Copyright (c) 2009, 2018 IBM Corporation and others.
  * All rights reserved. This program and the accompanying materials
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
@@ -224,13 +224,13 @@ public class Provisioner {
      * Install framework bundles.
      *
      * @param bundleList
-     *            Properties describing the bundles to install
+     *                              Properties describing the bundles to install
      * @param minStartLevel
-     *            Minimum start level for bundles named in the properties file
+     *                              Minimum start level for bundles named in the properties file
      * @param defaultStartLevel
-     *            Default start level for bundles named in the properties file
+     *                              Default start level for bundles named in the properties file
      * @param locSvc
-     *            WsLocationAdmin service to use to find bundles
+     *                              WsLocationAdmin service to use to find bundles
      * @return BundleInstallStatus containing details about the bundles
      *         installed, exceptions that occurred, bundles that couldn't be
      *         found, etc.
@@ -634,7 +634,7 @@ public class Provisioner {
      * Gets the region name according to the product name.
      *
      * @param productName the product name. Empty string or <code>null</code> indicates
-     *            the liberty profile itself.
+     *                        the liberty profile itself.
      * @return the region name
      */
     private String getRegionName(String productName) {

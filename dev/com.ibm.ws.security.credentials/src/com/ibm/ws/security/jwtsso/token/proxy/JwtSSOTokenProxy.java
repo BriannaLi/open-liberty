@@ -12,24 +12,24 @@ package com.ibm.ws.security.jwtsso.token.proxy;
 
 import javax.security.auth.Subject;
 
-import com.ibm.websphere.security.WSSecurityException;
+import com.ibm.websphere.security.auth.WSLoginFailedException;
 
 /**
  *
  */
 public interface JwtSSOTokenProxy {
 
-    void createJwtSSOToken(Subject subject) throws WSSecurityException;
+    void createJwtSSOToken(Subject subject) throws WSLoginFailedException;
 
     String getJwtSSOToken(Subject subject);
 
-    Subject handleJwtSSOTokenValidation(Subject subject, String encodedjwt) throws WSSecurityException;
+    Subject handleJwtSSOTokenValidation(Subject subject, String encodedjwt) throws WSLoginFailedException;
 
     String getCustomCacheKeyFromJwtSSOToken(String encodedjwt);
 
     String getCacheKeyForJwtSSOToken(Subject subject, String encodedjwt);
 
-    void addCustomCacheKeyToJwtSSOToken(Subject subject, String cacheKeyValue);
+    void addAttributesToJwtSSOToken(Subject subject) throws WSLoginFailedException;
 
     boolean isSubjectValid(Subject subject);
 
@@ -43,6 +43,6 @@ public interface JwtSSOTokenProxy {
 
     boolean shouldAlsoIncludeLtpaCookie();
 
-    boolean shouldFallbackToLtpaCookie();
+    boolean shouldUseLtpaIfJwtAbsent();
 
 }

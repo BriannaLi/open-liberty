@@ -17,9 +17,12 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -131,6 +134,12 @@ public class EmbeddedContainerTest {
         assertTrue("JarName " + starterJarName + " is a SB 2.0 TOMCAT starter artifact, apply() is true", filter.apply(starterJarName));
         sourceFatJar.close();
 
+        sourceFatJar = new JarFile(getNettyStarter20AppJar());
+        starterJarName = springBoot20NettyStarterJars.get(random0max(springBoot20NettyStarterJars.size() - 1));
+        filter = getStarterFilter(sourceFatJar);
+        assertTrue("JarName " + starterJarName + " is a SB 2.0 NETTY starter artifact, apply() is true", filter.apply(starterJarName));
+        sourceFatJar.close();
+
         starterJarName = springBoot20JettyStarterJars.get(0); // item 0 is always the root starter jar
         assertFalse("JarName " + starterJarName + "is NOT a TOMCAT 2.0 starter artifact, apply() is false", filter.apply(starterJarName));
     }
@@ -146,9 +155,10 @@ public class EmbeddedContainerTest {
         File thinAppJar = workingArea.newFile("starterThinJar.jar");
         File appLibsDir = workingArea.newFolder("starterAppLibs");
 
-        SpringBootThinUtil util = new TestThinUtil(fatAppJar, thinAppJar, appLibsDir);
-        util.execute(); // Indirectly exercises SpringBootThinUtil.getStarterFilter() and
-                        // StarterFilter.apply()
+        try (SpringBootThinUtil util = new TestThinUtil(fatAppJar, thinAppJar, appLibsDir)) {
+            util.execute(); // Indirectly exercises SpringBootThinUtil.getStarterFilter() and
+                            // StarterFilter.apply()
+        }
 
         verifyJarLacksArtifacts(thinAppJar, springBoot20TomcatStarterJars);
         verifyDirLacksArtifacts(appLibsDir, springBoot20TomcatStarterJars);
@@ -190,6 +200,7 @@ public class EmbeddedContainerTest {
     File webStarter20AppJar; // tomcat starter, fyi
     File jettyStarter20AppJar;
     File undertowStarter20AppJar;
+    File nettyStarter20AppJar;
 
     File getWebStarter20AppJar() throws Exception {
         if (webStarter20AppJar == null) {
@@ -221,6 +232,16 @@ public class EmbeddedContainerTest {
         return undertowStarter20AppJar;
     }
 
+    File getNettyStarter20AppJar() throws Exception {
+        if (nettyStarter20AppJar == null) {
+            List<String> starterJarEntryPaths = convertToJarEntryPaths("BOOT-INF/lib/", springBoot20NettyStarterJars);
+            List<String> entryPaths = merge(springBoot20WebAppMinusTomcatJarEntryPaths, starterJarEntryPaths);
+            Manifest manifest = createManifest(springBoot20WebAppManifestContent);
+            nettyStarter20AppJar = createSourceFatJar(entryPaths, manifest);
+        }
+        return nettyStarter20AppJar;
+    }
+
     public static List<String> convertToJarEntryPaths(String path, Collection<String> artifacts) {
         List<String> newList = new ArrayList<String>(artifacts.size());
         for (String artifact : artifacts)
@@ -242,18 +263,40 @@ public class EmbeddedContainerTest {
 
     public File createSourceFatJar(List<String> filePaths, Manifest manifest) throws Exception {
         File fatJar = workingArea.newFile("fat.jar");
+
         JarOutputStream fatJarStream = new JarOutputStream(new FileOutputStream(fatJar), manifest);
+        byte i = 0, j = 0;
         for (String filePath : filePaths) {
             ZipEntry ze = new ZipEntry(filePath);
             fatJarStream.putNextEntry(ze);
             if (!filePath.endsWith(fs)) {
-                // If this is an actual file entry write some data. The content is not
-                // relevant to the test. We only care about the structure of the zip file.
-                fatJarStream.write(new byte[] { 'H', 'e', 'l', 'o' }, 0, 4);
+                if (filePath.endsWith(".jar")) {
+                    byte[] libContent = createBootInfLibContent(manifest, j++);
+                    try (InputStream is = new ByteArrayInputStream(libContent)) {
+                        byte[] buffer = new byte[4096];
+                        int bytesRead;
+                        while ((bytesRead = is.read(buffer)) != -1) {
+                            fatJarStream.write(buffer, 0, bytesRead);
+                        }
+                    }
+                } else {
+                    // If this is an actual file entry write some data. The content is not
+                    // relevant to the test. We only care about the structure of the zip file.
+                    fatJarStream.write(new byte[] { 'H', 'e', 'l', 'l', 'o', i++ }, 0, 6);
+                }
             }
         }
         fatJarStream.close();
         return fatJar;
+    }
+
+    private byte[] createBootInfLibContent(Manifest manifest, byte j) throws IOException, FileNotFoundException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (JarOutputStream libJarStream = new JarOutputStream(out, manifest)) {
+            libJarStream.putNextEntry(new ZipEntry("hello.txt"));
+            libJarStream.write(new byte[] { 'h', 'e', 'l', 'l', '0', j }, 0, 6);
+        }
+        return out.toByteArray();
     }
 
     static <T> Set<T> union(Set<T> s1, Set<T>... sn) {
@@ -478,5 +521,7 @@ public class EmbeddedContainerTest {
                                                                                    "websocket-common-9.4.9.v20180320.jar",
                                                                                    "websocket-server-9.4.9.v20180320.jar",
                                                                                    "websocket-servlet-9.4.9.v20180320.jar");
+
+    private final static List<String> springBoot20NettyStarterJars = Arrays.asList("spring-boot-starter-reactor-netty-2.0.1.RELEASE.jar");
 
 }

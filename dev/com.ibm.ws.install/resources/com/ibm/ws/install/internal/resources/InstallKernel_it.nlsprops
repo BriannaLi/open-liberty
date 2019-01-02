@@ -434,6 +434,15 @@ ERROR_NON_FEATURE_CANNOT_INSTALL_TO_EXTENSION=CWWKF1298E: {0} non \u00e8 una fun
 ERROR_NON_FEATURE_CANNOT_INSTALL_TO_EXTENSION.explanation=Solo le funzioni possono essere installate su un'estensione del prodotto.
 ERROR_NON_FEATURE_CANNOT_INSTALL_TO_EXTENSION.action=Eseguire il comando installUtility senza specificare l'estensione.
 
+ERROR_FAILED_TO_RESOLVE_FEATURES_FOR_OPEN_LIBERTY=CWWKF1299E: Impossibile ottenere le seguenti funzioni: {0}. Assicurarsi che le funzioni specificate siano valide per Open Liberty.
+ERROR_FAILED_TO_RESOLVE_FEATURES_FOR_OPEN_LIBERTY.explanation=Il programma di installazione non \u00e8 riuscito a richiamare le funzioni specificate dai repository connessi.
+ERROR_FAILED_TO_RESOLVE_FEATURES_FOR_OPEN_LIBERTY.useraction=Se le funzioni specificate esistono, assicurarsi che siano valide per Open Liberty.
+
+ERROR_INVALID_PRODUCT_EDITION_FOR_OPEN_LIBERTY_FEATURE=CWWKF1300E: La funzione {0} non pu\u00f2 essere installata in IBM WebSphere Application Server Liberty Core Edition perch\u00e9 si applica solo ad altre edizioni di IBM WebSphere Application Server Liberty. Utilizzare l''azione "find" del comando featureManager per richiamare un elenco di funzioni applicabili a IBM WebSphere Application Server Liberty Core Edition.
+ERROR_INVALID_PRODUCT_EDITION_FOR_OPEN_LIBERTY_FEATURE.explanation=La funzione non \u00e8 applicabile all'edizione installata del prodotto.
+ERROR_INVALID_PRODUCT_EDITION_FOR_OPEN_LIBERTY_FEATURE.useraction=Installare le funzioni che sono supportate da questa edizione del prodotto.
+
+
 # Following messages for info logging purpose
 LOG_INSTALL_FEATURES=CWWKF1300I: Installazione delle seguenti funzioni: {0}.
 LOG_INSTALL_FEATURES.explanation=Le funzioni specificate verranno installate.
@@ -761,6 +770,14 @@ ERROR_UNKNOWN_OPERATING_SYSTEM.useraction=Passare a uno dei seguenti sistemi ope
 ERROR_UNKNOWN_OSLIST_VALUE=CWWKF1387E: Il valore {0} non \u00e8 un''immissione valida per la direttiva del sistema operativo {1}.
 ERROR_UNKNOWN_OSLIST_VALUE.explanation=Questo valore verr\u00e0 ignorato perch\u00e9 non \u00e8 un nome sistema operativo riconosciuto.
 ERROR_UNKNOWN_OSLIST_VALUE.useraction=Modificare o rimuovere il valore dal file manifest della funzione.
+
+ERROR_ESA_NOT_FOUND=CWWKF1388E: Il file ESA specificato {0} non conteneva funzioni.
+ERROR_ESA_NOT_FOUND.explanation=Non verranno installate funzioni dal file ESA.
+ERROR_ESA_NOT_FOUND.useraction=Verificare che il file ESA fornito sia valido e contenga funzioni.
+
+ERROR_SINGLE_REPO_CONNECTION_FAILED=CWWKF1389E: Impossibile creare un file JSON in {0} per il file ESA {1}.
+ERROR_SINGLE_REPO_CONNECTION_FAILED.explanation=La funzione nel file ESA non verr\u00e0 installata.
+ERROR_SINGLE_REPO_CONNECTION_FAILED.useraction=Assicurarsi che l'accesso in scrittura sia disponibile per la directory in cui verr\u00e0 creato il file JSON.
 
 TOOL_DOWNLOAD_FEATURE_OK=CWWKF1500I: La funzione \u00e8 stata scaricata correttamente.
 TOOL_DOWNLOAD_FEATURE_OK.explanation=La funzione \u00e8 stata scaricata.

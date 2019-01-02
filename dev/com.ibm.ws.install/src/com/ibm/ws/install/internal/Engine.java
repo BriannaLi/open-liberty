@@ -84,6 +84,27 @@ public class Engine {
     }
 
     /**
+     * Installs Feature while skipping dependency check
+     *
+     * @param installAsset InstallAsset to install
+     * @param filesInstalled List of files to be installed
+     * @param featuresToBeInstalled Collection of feature names to install
+     * @param existsAction Action to take if asset exists
+     * @param executableFiles Set of executable file names
+     * @param extattrFiles Extendible attribute files as a set
+     * @param downloadDependencies If dependencies should be downloaded
+     * @param proxy RestRepositoryConnectionProxy to connect to
+     * @param checksumsManager ChecksumsManager for installed files
+     * @throws IOException
+     * @throws InstallException
+     */
+    public void installFeatureNoDependencyCheck(InstallAsset installAsset, List<File> filesInstalled, Collection<String> featuresToBeInstalled, ExistsAction existsAction,
+                                                Set<String> executableFiles, Map<String, Set<String>> extattrFiles, boolean downloadDependencies,
+                                                RestRepositoryConnectionProxy proxy, ChecksumsManager checksumsManager) throws IOException, InstallException {
+        ESAAdaptor.install(product, (ESAAsset) installAsset, filesInstalled, featuresToBeInstalled, existsAction, executableFiles, extattrFiles, checksumsManager, true);
+    }
+
+    /**
      * Determines which install method to call based on the type of uninstallAsset
      *
      * @param uninstallAsset UninstallAsset to uninstall
@@ -98,15 +119,15 @@ public class Engine {
                           List<File> filesRestored) throws IOException, ParserConfigurationException, SAXException, InstallException {
         if (uninstallAsset.getType().equals(UninstallAssetType.feature)) {
             // Remove the feature contents and metadata
-            ESAAdaptor.uninstallFeature(uninstallAsset.getProvisioningFeatureDefinition(), product.getFeatureDefinitions(),
-                                        getBaseDir(uninstallAsset.getProvisioningFeatureDefinition()), checkDependency, filesRestored);
+            ESAAdaptor.uninstallFeature(uninstallAsset, uninstallAsset.getProvisioningFeatureDefinition(),
+                                        getBaseDir(uninstallAsset.getProvisioningFeatureDefinition()), filesRestored);
         } else if (uninstallAsset.getType().equals(UninstallAssetType.fix)) {
             FixAdaptor.uninstallFix(uninstallAsset.getIFixInfo(), product.getInstallDir(), filesRestored);
         }
         InstallUtils.updateFingerprint(product.getInstallDir());
     }
 
-    private File getBaseDir(ProvisioningFeatureDefinition pd) throws InstallException {
+    public File getBaseDir(ProvisioningFeatureDefinition pd) throws InstallException {
         if (pd.getBundleRepositoryType().equals(ExtensionConstants.USER_EXTENSION)) {
             return product.getUserExtensionDir();
         } else if (pd.getBundleRepositoryType().equals(ExtensionConstants.CORE_EXTENSION)) {
@@ -124,10 +145,10 @@ public class Engine {
      * @param checkDependency If dependencies should be checked
      * @throws InstallException
      */
-    public void preCheck(UninstallAsset uninstallAsset, boolean checkDependency) throws InstallException {
+    public void preCheck(UninstallAsset uninstallAsset) throws InstallException {
         if (uninstallAsset.getType().equals(UninstallAssetType.feature)) {
-            ESAAdaptor.preCheck(uninstallAsset.getProvisioningFeatureDefinition(), product.getFeatureDefinitions(),
-                                getBaseDir(uninstallAsset.getProvisioningFeatureDefinition()), checkDependency);
+            ESAAdaptor.preCheck(uninstallAsset, uninstallAsset.getProvisioningFeatureDefinition(),
+                                getBaseDir(uninstallAsset.getProvisioningFeatureDefinition()));
         } else if (uninstallAsset.getType().equals(UninstallAssetType.fix)) {
             FixAdaptor.preCheck(uninstallAsset.getIFixInfo(), product.getInstallDir());
         }

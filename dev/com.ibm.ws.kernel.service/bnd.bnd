@@ -45,10 +45,13 @@ instrument.classesExcludes: com/ibm/ws/kernel/service/utils/resources/*.class
 	com.ibm.websphere.org.osgi.service.component;version=latest,\
 	com.ibm.wsspi.org.osgi.service.component.annotations;version=latest,\
 	com.ibm.ws.common.encoder;version=latest,\
+	com.ibm.ws.kernel.boot.common;version=latest,\
 	com.ibm.ws.kernel.boot.core;version=latest,\
 	com.ibm.ws.kernel.boot.nested;version=latest,\
 	com.ibm.ws.kernel.security.thread;version=latest,\
 	com.ibm.ws.logging.core;version=latest, \
 	com.ibm.ws.org.osgi.annotation.versioning;version=latest, \
 	org.eclipse.osgi;version=latest
-	
+
+-testpath: \
+  ../build.sharedResources/lib/junit/old/junit.jar;version=file
